@@ -54,7 +54,9 @@ sudo install minikube-linux-amd64 /usr/local/bin/minikube
 ~~~
 ~~~bash
 #Start your cluster
-~ minikube start
+minikube start
+~~~
+~~~
 😄  minikube v1.28.0 на Ubuntu 22.04
     ▪ KUBECONFIG=:/home/dpp/.kube/admin-dev-k8.energochain.config:/home/dpp/.kube/dev-k8.energochain.config:/home/dpp/.kube/test-k8.energochain.config
 ❗  Kubernetes 1.25.0 has a known issue with resolv.conf. minikube is using a workaround that should work for most use cases.
@@ -84,6 +86,8 @@ To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 - Установка Kubernetes Dashboard
 ~~~bash
 minikube dashboard --url
+~~~
+~~~
 🔌  Enabling dashboard ...
     ▪ Используется образ docker.io/kubernetesui/dashboard:v2.7.0
     ▪ Используется образ docker.io/kubernetesui/metrics-scraper:v1.0.8
@@ -104,8 +108,9 @@ http://127.0.0.1:45263/api/v1/namespaces/kubernetes-dashboard/services/http:kube
 кластера Kubernetes. Можем убедиться в этом, зайдем на ВМ по SSH и посмотрим запущенные Docker контейнеры:
 ~~~bash
 minikube ssh
-
 docker@minikube:~$ docker ps
+~~~
+~~~
 CONTAINER ID   IMAGE                  COMMAND                  CREATED              STATUS              PORTS                                      NAMES
 717ca55f8739   5185b96f0bec           "/coredns -conf /etc…"   About a minute ago   Up About a minute                                              k8s_coredns_coredns-565d847f94-nkfqg_kube-system_27de7ed3-1de2-469d-acf6-16096734f13e_4
 7ab54a934dbb   6e38f40d628d           "/storage-provisioner"   About a minute ago   Up About a minute                                              k8s_storage-provisioner_storage-provisioner_kube-system_3234523b-d4dc-4d52-9b91-206454baf384_13
@@ -133,8 +138,9 @@ d51f3d3a5a21   k8s.gcr.io/pause:3.6   "/pause"                 About a minute ag
 
 Проверим, что Kubernetes обладает некоторой устойчивостью к отказам, удалим все контейнеры:
 ~~~bash
-$ docker rm -f $(docker ps -a -q)
 docker rm -f $(docker ps -a -q)
+~~~
+~~~
 717ca55f8739
 7ab54a934dbb
 2ad2dd7c0473
@@ -205,7 +211,9 @@ a702d7eb344f   k8s.gcr.io/pause:3.6   "/pause"                 8 seconds ago   U
 
 Эти же компоненты, но уже в виде pod можно увидеть в namespace kube-system
 ~~~bash
-ubectl get pods -n kube-system    
+kubectl get pods -n kube-system    
+~~~
+~~~
 NAME                               READY   STATUS    RESTARTS         AGE
 coredns-565d847f94-nkfqg           1/1     Running   5                87d
 etcd-minikube                      1/1     Running   5                87d
@@ -219,6 +227,8 @@ storage-provisioner                1/1     Running   15 (2m58s ago)   87d
 Можно устроить еще одну проверку на прочность и удалить все pod с системными компонентами (все поды из namespace kube-system):
 ~~~bash
 kubectl delete pod --all -n kube-system
+~~~
+~~~
 pod "coredns-565d847f94-nkfqg" deleted
 pod "etcd-minikube" deleted
 pod "kube-apiserver-minikube" deleted
@@ -231,6 +241,8 @@ pod "storage-provisioner" deleted
 Проверим, что кластер находится в рабочем состоянии
 ~~~bash
 kubectl get cs
+~~~
+~~~
 Warning: v1 ComponentStatus is deprecated in v1.19+
 NAME                 STATUS    MESSAGE                         ERROR
 scheduler            Healthy   ok                              
@@ -242,18 +254,23 @@ etcd-0               Healthy   {"health":"true","reason":""}
 Разберитесь почему все pod в namespace kube-system восстановились после удаления. Укажите причину в описании PR
 
 ~~~bash
-kubectl get pods -n kube-system                              
-NAME                               READY   STATUS    RESTARTS   AGE
-coredns-565d847f94-jmkj9           1/1     Running   0          57m
-etcd-minikube                      1/1     Running   5          57m
-kube-apiserver-minikube            1/1     Running   5          57m
-kube-controller-manager-minikube   1/1     Running   5          57m
-kube-proxy-9mg4f                   1/1     Running   0          57m
-kube-scheduler-minikube            1/1     Running   5          57m
+kubectl get pods -n kube-system 
+~~~
+~~~
+NAME                               READY   STATUS    RESTARTS        AGE
+coredns-565d847f94-jmkj9           1/1     Running   1 (29s ago)     11h
+etcd-minikube                      1/1     Running   6 (29s ago)     11h
+kube-apiserver-minikube            1/1     Running   6 (6h56m ago)   11h
+kube-controller-manager-minikube   1/1     Running   6 (6h56m ago)   11h
+kube-proxy-9mg4f                   1/1     Running   1 (6h56m ago)   11h
+kube-scheduler-minikube            1/1     Running   6 (6h56m ago)   11h
+storage-provisioner                1/1     Running   0               12s
 ~~~
 
 ~~~bash
-ubectl describe pods coredns-565d847f94-jmkj9 -n kube-system 
+kubectl describe po coredns-565d847f94-jmkj9 -n kube-system
+~~~
+~~~
 Name:                 coredns-565d847f94-jmkj9
 Namespace:            kube-system
 Priority:             2000000000
@@ -265,14 +282,19 @@ Labels:               k8s-app=kube-dns
                       pod-template-hash=565d847f94
 Annotations:          <none>
 Status:               Running
-IP:                   172.17.0.7
+IP:                   172.17.0.6
 IPs:
-  IP:           172.17.0.7
+  IP:           172.17.0.6
 Controlled By:  ReplicaSet/coredns-565d847f94
+...
 ~~~
 
+`core-dns` управляется контроллером ReplicaSet, т.е. при удалении poda, ReplicaSet обнаруживает его отсутствие и создаёт новый.
+
 ~~~bash
-kubectl describe pods etcd-minikube -n kube-system
+kubectl describe po etcd-minikube -n kube-system
+~~~
+~~~
 Name:                 etcd-minikube
 Namespace:            kube-system
 Priority:             2000001000
@@ -291,12 +313,382 @@ IP:                   192.168.49.2
 IPs:
   IP:           192.168.49.2
 Controlled By:  Node/minikube
+...
+~~~
+
+~~~bash
+kubectl describe po kube-apiserver-minikube -n kube-system
+~~~
+~~~
+Name:                 kube-apiserver-minikube
+Namespace:            kube-system
+Priority:             2000001000
+Priority Class Name:  system-node-critical
+Node:                 minikube/192.168.49.2
+Start Time:           Fri, 30 Dec 2022 15:45:11 +0300
+Labels:               component=kube-apiserver
+                      tier=control-plane
+Annotations:          kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.168.49.2:8443
+                      kubernetes.io/config.hash: 16de73f898f4460d96d28cf19ba8407f
+                      kubernetes.io/config.mirror: 16de73f898f4460d96d28cf19ba8407f
+                      kubernetes.io/config.seen: 2022-12-30T14:13:03.898314768Z
+                      kubernetes.io/config.source: file
+Status:               Running
+IP:                   192.168.49.2
+IPs:
+  IP:           192.168.49.2
+Controlled By:  Node/minikube
+...
+~~~
+
+~~~bash
+kubectl describe po kube-controller-manager-minikube -n kube-system
+~~~
+~~~
+Name:                 kube-controller-manager-minikube
+Namespace:            kube-system
+Priority:             2000001000
+Priority Class Name:  system-node-critical
+Node:                 minikube/192.168.49.2
+Start Time:           Tue, 04 Oct 2022 17:15:16 +0300
+Labels:               component=kube-controller-manager
+                      tier=control-plane
+Annotations:          kubernetes.io/config.hash: 77bee6e3b99b4016b81d7d949c58a789
+                      kubernetes.io/config.mirror: 77bee6e3b99b4016b81d7d949c58a789
+                      kubernetes.io/config.seen: 2022-12-30T14:13:03.898319030Z
+                      kubernetes.io/config.source: file
+Status:               Running
+IP:                   192.168.49.2
+IPs:
+  IP:           192.168.49.2
+Controlled By:  Node/minikube
+...
+~~~
+
+`etcd-minikube`,`kube-apiserver`,`kube-controller-manager-minikube`,`kube-scheduler-minikube` управляются Node/minikube, т.е. самим minikube.
+
+~~~bash
+kubectl describe po kube-proxy-9mg4f -n kube-system
+~~~
+~~~
+Name:                 kube-proxy-9mg4f
+Namespace:            kube-system
+Priority:             2000001000
+Priority Class Name:  system-node-critical
+Service Account:      kube-proxy
+Node:                 minikube/192.168.49.2
+Start Time:           Fri, 30 Dec 2022 17:20:46 +0300
+Labels:               controller-revision-hash=55c79b8759
+                      k8s-app=kube-proxy
+                      pod-template-generation=1
+Annotations:          <none>
+Status:               Running
+IP:                   192.168.49.2
+IPs:
+  IP:           192.168.49.2
+Controlled By:  DaemonSet/kube-proxy
+...
+~~~
+
+`kube-proxy` управляется контроллером DaemonSet, т.е. при удалении poda, DaemonSet обнаруживает его отсутствие и создаёт новый.
+
+### 2. Dockerfile
+Для выполнения домашней работы необходимо создать Dockerfile, в котором будет описан образ:
+1. Запускающий web-сервер на порту 8000 (можно использовать любой способ);
+2. Отдающий содержимое директории /app внутри контейнера (например, если в директории /app лежит файл homework.html , то при запуске контейнера данный файл должен быть доступен по URL http://localhost:8000/homework.html);
+3. Работающий с UID 1001.
+
+~~~Dockerfile
+FROM nginx:1.23.3-alpine
+
+ENV UID=1001 \
+    GID=1001 \
+    USER=nginx \
+    GROUP=nginx
+
+RUN apk add --no-cache shadow
+RUN usermod -u ${UID} ${USER} \
+	&& groupmod -g ${GID} ${GROUP} \
+    && chown -R ${USER}:${GROUP} /var/cache/nginx \
+    && chown -R ${USER}:${GROUP} /var/log/nginx \
+    && touch /var/run/nginx.pid \
+    && chown -R ${USER}:${GROUP} /var/run/nginx.pid \
+    && sed -i '/^user[[:space:]]*nginx;$/d' /etc/nginx/nginx.conf
+
+WORKDIR /app/
+COPY ./app .
+
+COPY ./default.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 8000/tcp
+USER ${UID}:${GID}
+
+CMD ["nginx", "-g", "daemon off;"]
+~~~
+
+Собираем образ...
+~~~bash
+cd web
+docker build -t deron73/my-nginx-image:0.3 --no-cache .
+~~~
+запускаем...
+~~~bash
+docker run -d -p 8000:8000 deron73/my-nginx-image:0.3
+~~~
+~~~
+83062ddf92211e85036f653e824937133c82a051a2dbfb6d4a251c92d40b472f
+~~~
+
+проверяем работу...
+~~~bash
+curl http://localhost:8000
+~~~
+~~~
+<html>
+<head><title>Index of /</title></head>
+<body>
+<h1>Index of /</h1><hr><pre><a href="../">../</a>
+<a href="homework.html">homework.html</a>                                      30-Dec-2022 10:36                 112
+</pre><hr></body>
+</html>
+~~~
+~~~bash
+docker exec -it 83062dd /bin/sh 
+~~~
+~~~bash
+ps aux
+~~~
+~~~
+PID   USER     TIME  COMMAND
+1 nginx     0:00 nginx: master process nginx -g daemon off;
+21 nginx     0:00 nginx: worker process
+22 nginx     0:00 nginx: worker process
+23 nginx     0:00 nginx: worker process
+24 nginx     0:00 nginx: worker process
+25 nginx     0:00 nginx: worker process
+26 nginx     0:00 nginx: worker process
+27 nginx     0:00 nginx: worker process
+28 nginx     0:00 nginx: worker process
+29 nginx     0:00 nginx: worker process
+30 nginx     0:00 nginx: worker process
+31 nginx     0:00 nginx: worker process
+32 nginx     0:00 nginx: worker process
+39 nginx     0:00 /bin/sh
+45 nginx     0:00 ps aux
+~~~
+~~~bash
+id
+~~~
+~~~
+uid=1001(nginx) gid=1001(nginx) groups=1001(nginx)
+~~~
+~~~bash
+whoami
+~~~
+~~~
+nginx
+~~~
+~~~bash
+exit
+~~~
+
+и выкладываем в Docker Hub:
+~~~bash
+docker push deron73/my-nginx-image:0.3
+~~~
+
+### 3. Манифест pod
+Напишем манифест [web-pod.yaml](./web-pod.yaml) для создания pod web c меткой app со значением web, содержащего один контейнер с названием web.
+
+~~~bash
+kubectl apply -f web-pod.yaml
+~~~
+~~~bash
+kubectl get pods
+~~~
+~~~
+NAME   READY   STATUS    RESTARTS   AGE
+web    1/1     Running   0          47s
+~~~
+~~~bash
+kubectl get pods -o yaml
+~~~
+~~~bash
+kubectl describe pod web
+~~~
+~~~
+...
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  2m22s  default-scheduler  Successfully assigned default/web to minikube
+  Normal  Pulling    2m14s  kubelet            Pulling image "deron73/my-nginx-image:0.3"
+  Normal  Pulled     2m5s   kubelet            Successfully pulled image "deron73/my-nginx-image:0.3" in 9.258574705s
+  Normal  Created    2m5s   kubelet            Created container web
+  Normal  Started    2m4s   kubelet            Started container web
+~~~
+
+Шатаем pod, указав в манифесте несуществующий тег образа web
+~~~bash
+kubectl apply -f web-pod.yaml
+~~~
+~~~
+pod/web configured
+➜  kubernetes-intro git:(kubernetes-prepare) ✗ kubectl describe pod web
+Events:
+  Type     Reason     Age   From               Message
+  ----     ------     ----  ----               -------
+  Normal   Scheduled  11m   default-scheduler  Successfully assigned default/web to minikube
+  Normal   Pulling    11m   kubelet            Pulling image "deron73/my-nginx-image:0.3"
+  Normal   Pulled     11m   kubelet            Successfully pulled image "deron73/my-nginx-image:0.2" in 3.537665473s
+  Normal   Created    11m   kubelet            Created container web
+  Normal   Started    11m   kubelet            Started container web
+  Normal   Killing    6s    kubelet            Container web definition changed, will be restarted
+  Normal   Pulling    6s    kubelet            Pulling image "deron73/my-nginx-image:0.4"
+  Warning  Failed     1s    kubelet            Failed to pull image "deron73/my-nginx-image:0.4": rpc error: code = Unknown desc = Error response from daemon: manifest for deron73/my-nginx-image:0.3 not found: manifest unknown: manifest unknown
+  Warning  Failed     1s    kubelet            Error: ErrImagePull
+  Warning  Unhealthy  1s    kubelet            Readiness probe failed: Get "http://172.17.0.3:8000/": dial tcp 172.17.0.3:8000: connect: connection refused
+  Warning  Unhealthy  1s    kubelet            Liveness probe failed: dial tcp 172.17.0.3:8000: connect: connection refused
+  Normal   BackOff    1s    kubelet            Back-off pulling image "deron73/my-nginx-image:0.4"
+  Warning  Failed     1s    kubelet            Error: ImagePullBackOff
 ~~~
 
 
+### 4. Init контейнеры & Volumes
 
+Добавим в наш pod [init container](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/), генерирующий страницу index.html
+Для того, чтобы файлы, созданные в init контейнере, были доступны основному контейнеру в pod нам понадобится использовать volume типа emptyDir.
+~~~yaml
+...
+    volumeMounts:
+    - name: app
+      mountPath: /app
+  initContainers:
+  - name: init-web
+    image: busybox:1.34.1
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: app
+      mountPath: /app
+    command: ['sh', '-c', 'wget -O- https://tinyurl.com/otus-k8s-intro | sh']
+  volumes:
+    - name: app
+      emptyDir: {}
+~~~
 
+Перезапускам pod
 
+~~~bash
+kubectl delete -f web-pod.yaml
+~~~
+~~~
+pod "web" deleted
+~~~
+~~~bash
+kubectl apply -f web-pod.yaml
+~~~
+~~~
+pod/web created
+~~~
+~~~bash
+kubectl get pods -w
+~~~
+~~~
+NAME   READY   STATUS            RESTARTS   AGE
+web    0/1     PodInitializing   0          3s
+web    0/1     Running           0          8s
+web    0/1     Running           0          10s
+web    1/1     Running           0          11s
+~~~
 
+Проверка работы приложения
+~~~bash
+kubectl port-forward --address 0.0.0.0 pod/web 8001:8000
+~~~
 
+![Проверка работы приложения](2.png)
 
+### 6. Hipster Shop
+
+Начнем с микросервиса frontend. Его исходный код доступен по адресу [https://github.com/GoogleCloudPlatform/microservices-demo/tree/master/src/frontend](https://github.com/GoogleCloudPlatform/microservices-demo/tree/master/src/frontend)
+Склонируем и соберем собственный образ для frontend  (используя готовый Dockerfile)
+
+~~~bash
+cd ../../microservices-demo/src/frontend
+docker build -t deron73/hipster-frontend:0.2 .
+docker push deron73/hipster-frontend:0.2
+~~~
+
+Запустим через ad-hoc режим:
+~~~bash
+kubectl run frontend --image deron73/hipster-frontend:0.2 --restart=Never
+~~~
+
+Один из распространенных кейсов использования ad-hoc режима - генерация манифестов средствами kubectl:
+~~~bash
+cd /home/dpp/Документы/Otus/otus-kuber-2022-12/Deron-D_platform/kubernetes-intro
+kubectl run frontend --image deron73/hipster-frontend:0.2 --restart=Never --dry-run=client -o yaml > frontend-pod.yaml
+~~~
+
+Hipster Shop | Задание со ⭐
+Выяснение причины, по которой pod frontend находится в статусе Error
+~~~bash
+kubectl get pods
+~~~
+~~~
+NAME       READY   STATUS    RESTARTS   AGE
+frontend   0/1     Error     0          3m20s
+web        1/1     Running   0          30m
+~~~
+
+~~~bash
+kubectl logs frontend
+~~~
+~~~
+{"message":"Tracing disabled.","severity":"info","timestamp":"2022-12-31T03:28:48.249653875Z"}
+{"message":"Profiling disabled.","severity":"info","timestamp":"2022-12-31T03:28:48.24984103Z"}
+panic: environment variable "PRODUCT_CATALOG_SERVICE_ADDR" not set
+
+goroutine 1 [running]:
+main.mustMapEnv(0xc000038300, {0xbdc5a4, 0x1c})
+        /src/main.go:208 +0xb9
+main.main()
+        /src/main.go:120 +0x577
+~~~
+
+Добавим небходимый блок `env` в `frontend-pod-healthy.yaml` из [https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/kubernetes-manifests/frontend.yaml](https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/kubernetes-manifests/frontend.yaml) и проверяем:
+~~~yaml
+    env:
+      - name: PORT
+        value: "8080"
+      - name: PRODUCT_CATALOG_SERVICE_ADDR
+        value: "productcatalogservice:3550"
+      - name: CURRENCY_SERVICE_ADDR
+        value: "currencyservice:7000"
+      - name: CART_SERVICE_ADDR
+        value: "cartservice:7070"
+      - name: RECOMMENDATION_SERVICE_ADDR
+        value: "recommendationservice:8080"
+      - name: SHIPPING_SERVICE_ADDR
+        value: "shippingservice:50051"
+      - name: CHECKOUT_SERVICE_ADDR
+        value: "checkoutservice:5050"
+      - name: AD_SERVICE_ADDR
+        value: "adservice:9555"
+~~~
+~~~bash
+kubectl delete pod frontend
+kubectl apply -f frontend-pod-healthy.yaml
+kubectl get pods
+~~~
+
+~~~
+NAME       READY   STATUS    RESTARTS   AGE
+frontend   1/1     Running   0          70s
+web        1/1     Running   0          39m
+~~~
+
+# **Полезное:**
+[Kube Forwarder](https://kube-forwarder.pixelpoint.io/)
+
+</details>
