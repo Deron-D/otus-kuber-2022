@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: deron73/hipster-frontend:0.2
+        image: deron73/hipster-frontend:0.3
         ports:
         - containerPort: 8080
         readinessProbe:
