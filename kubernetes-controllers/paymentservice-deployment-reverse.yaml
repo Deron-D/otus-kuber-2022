@@ -1,12 +1,16 @@
 ---
 apiVersion: apps/v1
-kind: ReplicaSet
+kind: Deployment
 metadata:
   name: paymentservice
   labels:
     app: paymentservice
 spec:
   replicas: 3
+  strategy:
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
   selector:
     matchLabels:
       app: paymentservice
@@ -17,7 +21,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: deron73/hipster-paymentservice:v0.0.1
+        image: deron73/hipster-paymentservice:v0.0.2
         env:
         - name: PORT
           value: "50051"

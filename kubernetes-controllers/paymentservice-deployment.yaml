@@ -1,6 +1,6 @@
 ---
 apiVersion: apps/v1
-kind: ReplicaSet
+kind: Deployment
 metadata:
   name: paymentservice
   labels:
@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: deron73/hipster-paymentservice:v0.0.1
+        image: deron73/hipster-paymentservice:v0.0.2
         env:
         - name: PORT
           value: "50051"
