@@ -1,0 +1,10 @@
+.vscode/
+*.log
+.idea/
+*.md
+*.log
+*.tfvars
+.terraform
+terraform.tfstate
+terraform.tfstate.backup
+*.tf
