@@ -1,0 +1,27 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manage.io/acme-challenge-type: http01
+    kubernetes.io/ingress.class: nginx
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+      - shop.158.160.47.10.sslip.io
+      secretName: shop.158.160.47.10.sslip.io-tls
+  rules:
+  - host: shop.158.160.47.10.sslip.io
+    http:
+      paths:
+      - pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 8080
+        path: /

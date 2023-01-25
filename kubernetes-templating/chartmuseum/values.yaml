@@ -1,0 +1,19 @@
+---
+ingress:
+  enabled: true
+  pathType: "ImplementationSpecific"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    kubernetes.io/tls-acme: "true"
+#    ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: http01
+  hosts:
+    - name: chartmuseum.158.160.47.10.sslip.io
+      path: /
+      tls: true
+      tlsSecret: chartmuseum.158.160.47.10.sslip.io
+  ingressClassName: nginx
+env:
+  open:
+    DISABLE_API: false
