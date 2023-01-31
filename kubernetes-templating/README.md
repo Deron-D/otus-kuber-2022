@@ -396,9 +396,9 @@ shippingservice         ClusterIP   10.96.198.69    <none>        50051/TCP     
 kubectl get nodes -o wide
 ~~~
 ~~~
-NAME                        STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP    OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
-cl1sdl9jmenq18nt5jbd-ahak   Ready    <none>   2d12h   v1.23.6   10.130.0.15   51.250.41.30![img.png](img.png)   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
-cl1sdl9jmenq18nt5jbd-aled   Ready    <none>   2d12h   v1.23.6   10.130.0.6    51.250.39.17   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
+NAME                        STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP     OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+cl1sdl9jmenq18nt5jbd-ahak   Ready    <none>   7d21h   v1.23.6   10.130.0.15   51.250.44.80    Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
+cl1sdl9jmenq18nt5jbd-aled   Ready    <none>   7d21h   v1.23.6   10.130.0.6    51.250.43.131   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
 ~~~
 ~~~bash
 kubectl get svc -A | grep NodePort
@@ -473,6 +473,92 @@ hipster-shop   frontend   nginx   shop.158.160.47.10.sslip.io   158.160.47.10   
 
 Проверяем работу `UI`
 ![img_5.png](./img_5.png)
+
+~~~bash
+helm ls -n hipster-shop
+~~~
+~~~
+NAME                    NAMESPACE       REVISION        UPDATED                                 STATUS          CHART                   APP VERSION
+frontend-release        hipster-shop    3               2023-01-25 22:42:27.428152386 +0300 MSK deployed        frontend-0.1.0          1.16.0     
+hipster-shop-release    hipster-shop    1               2023-01-25 22:25:06.850393043 +0300 MSK deployed        hipster-shop-0.1.0      1.16.0  
+~~~
+
+Создадим `frontend/values.yaml`, добавим `.image.tag`, изменим `frontend/templates/deployment.yaml`,
+перезапустим обновление чарта:
+~~~bash
+helm upgrade --install frontend-release frontend --namespace hipster-shop -f frontend/values.yaml
+~~~
+~~~bash
+kubectl describe  pods -n hipster-shop -l app=frontend | grep -i image
+~~~
+
+Видим, что ничего не изменилось в части тэга образа. 
+~~~
+    Image:          gcr.io/google-samples/microservices-demo/frontend:v0.1.3
+    Image ID:       gcr.io/google-samples/microservices-demo/frontend@sha256:0c72f37ed9aac1e65bccafc0ce7675ab9d1b6a407cdcefb2b9a608eec83490d5
+~~~
+
+Аналогичным образом шаблонизируем следующие параметры `frontend` chart
+- Количество реплик в `deployment`
+- `Port`, `targetPort` и `NodePort` в service
+- Опционально - тип сервиса. Ключ `NodePort` должен появиться в манифесте только если тип сервиса - `NodePort`
+- Другие параметры, которые на наш взгляд стоит шаблонизировать
+
+Проверяем шаблонизированные чарты:
+~~~bash
+helm template frontend  -f frontend/values.yaml
+~~~
+~~~bash
+helm upgrade --install frontend-release frontend --namespace hipster-shop -f frontend/values.yaml \
+  --dry-run
+~~~
+
+Включить созданный чарт `frontend` в зависимости нашего большого микросервисного приложения `hipster-shop`.
+Для начала, удалим release `frontend` из кластера:
+~~~bash
+helm delete frontend-release -n hipster-shop
+~~~
+
+Добавим chart `frontend` как зависимость в [hipster-shop/Chart.yaml](./hipster-shop/Chart.yaml)
+~~~yaml
+dependencies:
+  - name: frontend
+    version: 0.1.0
+    repository: "file://../frontend"
+~~~
+
+Обновим зависимости:
+~~~bash
+helm dep update hipster-shop
+~~~
+В директории `kubernetes-templating/hipster-shop/charts` появился архив `frontend-0.1.0.tgz` содержащий chart `frontend` определенной версии и добавленный в chart `hipster-shop` как зависимость.
+
+~~~bash
+helm ls -A
+~~~
+~~~
+NAME                    NAMESPACE       REVISION        UPDATED                                 STATUS          CHART                   APP VERSION
+cert-manager            cert-manager    1               2023-01-23 08:58:50.08122899 +0300 MSK  deployed        cert-manager-v1.11.0    v1.11.0    
+hipster-shop-release    hipster-shop    1               2023-01-25 22:25:06.850393043 +0300 MSK deployed        hipster-shop-0.1.0      1.16.0     
+nginx-ingress-release   nginx-ingress   1               2023-01-23 08:57:24.168902168 +0300 MSK deployed        ingress-nginx-4.4.2     1.5.1
+~~~
+
+Обновим release `hipster-shop` и убедимся, что ресурсы frontend вновь созданы:
+~~~bash
+helm upgrade hipster-shop-release -n hipster-shop hipster-shop
+kubectl get all -A -l app=frontend
+~~~
+~~~
+NAMESPACE      NAME                            READY   STATUS    RESTARTS   AGE
+hipster-shop   pod/frontend-69c6ff75c7-hqh5p   1/1     Running   0          4m34s
+
+NAMESPACE      NAME               TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+hipster-shop   service/frontend   NodePort   10.96.197.215   <none>        80:30796/TCP   4m35s
+
+NAMESPACE      NAME                                  DESIRED   CURRENT   READY   AGE
+hipster-shop   replicaset.apps/frontend-69c6ff75c7   1         1         1       4m34s
+~~~
+
 
 
 # **Полезное:**

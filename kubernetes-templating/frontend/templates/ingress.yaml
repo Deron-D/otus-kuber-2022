@@ -1,21 +1,19 @@
----
+{{- if .Values.ingress.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: frontend
-  annotations:
-    kubernetes.io/tls-acme: "true"
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    cert-manage.io/acme-challenge-type: http01
-    kubernetes.io/ingress.class: nginx
+  {{- with .Values.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 8 }}
+  {{- end }}
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-      - shop.158.160.47.10.sslip.io
-      secretName: shop.158.160.47.10.sslip.io-tls
+      - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.host }}-tls
   rules:
-  - host: shop.158.160.47.10.sslip.io
+  - host: {{ .Values.ingress.host }}
     http:
       paths:
       - pathType: Prefix
@@ -23,5 +21,6 @@ spec:
           service:
             name: frontend
             port:
-              number: 8080
+              number: {{ .Values.service.targetPort }}
         path: /
+{{- end }}
