@@ -594,6 +594,14 @@ ll hipster-shop/charts
 -rw-r--r-- 1 dpp dpp  91K янв 31 10:33 redis-17.6.0.tgz
 ~~~
 
+Проверим, что секрет создан, и его содержимое соответствует нашим ожиданиям:
+~~~bashq
+kubectl get secret secret -n hipster-shop -o yaml | grep visibleKey | awk '{print $2}' | base64 -d -
+~~~
+~~~
+hiddenValue%
+~~~
+
 ### 7. Работа с helm-secrets | Необязательное задание
 
 Разберемся как работает плагин `helm-secrets`. Для этого добавим в Helm chart секрет и научимся хранить его в зашифрованном виде.
