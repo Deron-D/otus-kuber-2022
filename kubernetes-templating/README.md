@@ -575,7 +575,7 @@ frontend   NodePort   10.96.197.215   <none>        80:31234/TCP   18m
 
 ### Создаем свой helm chart | Задание со ⭐
 
-Добавим чарт `redis как зависимость в [hipster-shop/Chart.yaml](./hipster-shop/Chart.yaml)
+Добавим чарт `redis` как зависимость в [hipster-shop/Chart.yaml](./hipster-shop/Chart.yaml)
 ~~~yaml
 - name: redis
   version: 17.6.0
@@ -594,6 +594,12 @@ ll hipster-shop/charts
 -rw-r--r-- 1 dpp dpp  91K янв 31 10:33 redis-17.6.0.tgz
 ~~~
 
+### 7. Работа с helm-secrets | Необязательное задание
+
+Разберемся как работает плагин `helm-secrets`. Для этого добавим в Helm chart секрет и научимся хранить его в зашифрованном виде.
+~~~bash
+helm plugin install https://github.com/jkroepke/helm-secrets --version v4.2.2
+~~~
 
 
 # **Полезное:**
