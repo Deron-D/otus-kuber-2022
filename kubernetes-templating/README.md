@@ -559,6 +559,41 @@ NAMESPACE      NAME                                  DESIRED   CURRENT   READY  
 hipster-shop   replicaset.apps/frontend-69c6ff75c7   1         1         1       4m34s
 ~~~
 
+Осталось понять, как из CI-системы мы можем менять параметры helm chart, описанные в `values.yaml`.
+Для этого существует специальный ключ `--set`. Изменим `NodePort` для frontend в release, не меняя его в самом chart:
+~~~bash
+helm upgrade --install hipster-shop-release hipster-shop -n hipster-shop --set frontend.service.NodePort=31234
+~~~
+~~~bash
+kubectl get svc -n hipster-shop -l app=frontend
+~~~
+~~~
+NAME       TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+frontend   NodePort   10.96.197.215   <none>        80:31234/TCP   18m
+~~~
+
+
+### Создаем свой helm chart | Задание со ⭐
+
+Добавим чарт `redis как зависимость в [hipster-shop/Chart.yaml](./hipster-shop/Chart.yaml)
+~~~yaml
+- name: redis
+  version: 17.6.0
+  repository: https://charts.bitnami.com/bitnami
+~~~
+Обновим зависимости:
+~~~bash
+helm dep update hipster-shop
+~~~
+~~~bash
+ll hipster-shop/charts
+~~~
+~~~
+итого 96K
+-rw-r--r-- 1 dpp dpp 1,8K янв 31 10:33 frontend-0.1.0.tgz
+-rw-r--r-- 1 dpp dpp  91K янв 31 10:33 redis-17.6.0.tgz
+~~~
+
 
 
 # **Полезное:**

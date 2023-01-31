@@ -6,7 +6,8 @@ image:
 replicaCount: 1
 
 service:
-  type: ClusterIP
+#  type: ClusterIP
+  type: NodePort
   NodePort: 30001
   port: 80
   targetPort: 8080

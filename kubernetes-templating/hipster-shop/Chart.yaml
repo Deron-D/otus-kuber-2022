@@ -27,3 +27,7 @@ dependencies:
   - name: frontend
     version: 0.1.0
     repository: "file://../frontend"
+
+  - name: redis
+    version: 17.6.0
+    repository: https://charts.bitnami.com/bitnami
