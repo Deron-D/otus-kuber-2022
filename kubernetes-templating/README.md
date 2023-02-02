@@ -289,8 +289,8 @@ sh.helm.release.v1.chartmuseum-release.v1   helm.sh/release.v1                  
 - Chartmuseum доступен по URL [https://chartmuseum.158.160.47.10.sslip.io/](https://chartmuseum.158.160.47.10.sslip.io/)
 - Сертификат для данного URL валиден
 
-![img.png](./chartmuseum/img.png)
-![img_1.png](./chartmuseum/img_1.png)
+![img.png](./img.png)
+![img_1.png](./img_1.png)
 
 ###  5. harbor
 
@@ -350,7 +350,24 @@ sh.helm.release.v1.harbor.v1   helm.sh/release.v1   1      6m8s
 - harbor доступен по URL [https://harbor.158.160.47.10.sslip.io/](https://harbor.158.160.47.10.sslip.io/)
 - Сертификат для данного URL валиден
 
-![img_2.png](./harbor/img_2.png)
+![img_2.png](./img_2.png)
+
+
+### Используем helmfile | Задание со ⭐
+
+Опишем установку `nginx-ingress`, `cert-manager` и `harbor` в [helmfile](./helmfile/helmfile.yaml)
+~~~bash
+wget https://github.com/helmfile/helmfile/releases/download/v0.150.0/helmfile_0.150.0_linux_amd64.tar.gz
+tar xzvf helmfile_0.150.0_linux_amd64.tar.gz -C ~/bin
+rm -f helmfile_0.150.0_linux_amd64.tar.gz
+chmod +x ~/bin/helmfile
+helm plugin install https://github.com/databus23/helm-diff
+~~~
+~~~bash
+cd helmfile
+helmfile apply
+~~~ 
+
 
 ###  6. Создаем свой helm chart
 Стандартными средствами helm инициализируем структуру директории с содержимым будущего helm chart
@@ -594,13 +611,6 @@ ll hipster-shop/charts
 -rw-r--r-- 1 dpp dpp  91K янв 31 10:33 redis-17.6.0.tgz
 ~~~
 
-Проверим, что секрет создан, и его содержимое соответствует нашим ожиданиям:
-~~~bashq
-kubectl get secret secret -n hipster-shop -o yaml | grep visibleKey | awk '{print $2}' | base64 -d -
-~~~
-~~~
-hiddenValue%
-~~~
 
 ### 7. Работа с helm-secrets | Необязательное задание
 
@@ -608,7 +618,86 @@ hiddenValue%
 ~~~bash
 helm plugin install https://github.com/jkroepke/helm-secrets --version v4.2.2
 ~~~
+Сгенерируем новый PGP ключ:
+~~~bash
+gpg --full-generate-key
+~~~
+Ответим на все вопросы. После этого проверим, что ключ появился:
+~~~bash
+gpg -k
+~~~
+~~~
+/home/dpp/.gnupg/pubring.kbx
+----------------------------
+pub   rsa3072 2023-01-31 [SC]
+      001E363980FEE9D2728790D399213F86D6EA72B3
+uid         [  абсолютно ] dpnev (dpnev) <dmitriypnev@gmail.com>
+sub   rsa3072 2023-01-31 [E]
+~~~
+Создадим новый файл [secrets.yaml](./frontend/secrets.yaml) в директории `./frontend` со следующим содержимым:
+~~~
+visibleKey: hiddenValue
+~~~
+И попробуем зашифровать его:
+~~~bash
+sops -e -i --pgp 001E363980FEE9D2728790D399213F86D6EA72B3 secrets.yaml
+~~~
 
+Проверим, что файл `secrets.yaml` изменился. Сейчас его содержание выглядим примерно так:
+~~~yaml
+visibleKey: ENC[AES256_GCM,data:BYy3jSC4qOs8nnw=,iv:oGKvuR/dOOloGxxnRSajlRp8nNhEjgKYMk/6qCvJonM=,tag:d3KUEcOQzNe9l17iIrOI9A==,type:str]
+sops:
+    kms: []
+    gcp_kms: []
+    azure_kv: []
+    hc_vault: []
+    age: []
+    lastmodified: "2023-01-31T09:40:47Z"
+    mac: ENC[AES256_GCM,data:qZ9tzn/3+FczJ6xwB+TA6RX4qneQ0NFBCHcOlzovRXbQelAGvo+bajp1by55aKVRfG8E5NwnWlO7K7t/EGisHsHREJwW2bDEY+B57cQ1sa5NwpU3Q1KzDIwyvFLpTX4xrVdMEWNRN36oEaaaSrZjC1S0ageLZ/iwsEmcQU0VFxY=,iv:FBVrl7UY0g0/3VJJhwc0RX8FkRO+9FtrNMYvNEqcowY=,tag:Mo7rxYbSGaHetUP5kfetKQ==,type:str]
+    pgp:
+        - created_at: "2023-01-31T09:40:42Z"
+          enc: |
+...
+~~~
+
+В таком виде файл уже можно коммитить в Git, но для начала - научимся
+расшифровывать его. Можно использовать любой из инструментов:
+~~~bash
+# helm secrets
+helm secrets decrypt ./frontend/secrets.yaml
+~~~
+~~~helm
+# sops
+sops -d ./frontend/secrets.yaml
+~~~
+
+Создадим в директории `./frontend/templates` еще один файл [secret.yaml](./frontend/templates/secret.yaml).
+Несмотря на похожее название его предназначение будет отличаться.
+~~~yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret
+type: Opaque
+data:
+  visibleKey: {{ .Values.visibleKey | b64enc | quote }}
+~~~
+Теперь, если мы передадим в helm файл `secrets.yaml` как values файл плагин helm-secrets поймет, что его надо расшифровать, а значение ключа
+`visibleKey` подставить в соответствующий шаблон секрета.
+Запустим установку:
+~~~bash
+helm secrets upgrade --install frontend ./frontend -n hipster-shop \
+ -f ./frontend/values.yaml \
+ -f ./frontend/secrets.yaml
+~~~
+
+Проверим, что секрет создан, и его содержимое соответствует нашим ожиданиям:
+~~~bash
+kubectl get secret secret -n hipster-shop -o yaml | grep visibleKey | awk '{print $2}' | base64 -d -
+~~~
+~~~
+hiddenValue%
+~~~
 
 # **Полезное:**
 
