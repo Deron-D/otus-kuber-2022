@@ -682,6 +682,7 @@ type: Opaque
 data:
   visibleKey: {{ .Values.visibleKey | b64enc | quote }}
 ~~~
+
 Теперь, если мы передадим в helm файл `secrets.yaml` как values файл плагин helm-secrets поймет, что его надо расшифровать, а значение ключа
 `visibleKey` подставить в соответствующий шаблон секрета.
 Запустим установку:
