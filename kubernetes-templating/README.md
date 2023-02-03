@@ -1125,7 +1125,7 @@ yc managed-kubernetes cluster stop k8s-4otus
 - https://chartmuseum.158.160.47.10.sslip.io/
 - https://shop.158.160.47.10.sslip.io/
 
-
+Доки:
 - [Securing NGINX-ingress](https://cert-manager.io/docs/tutorials/acme/nginx-ingress/)
 - [Начало работы с Terraform](https://cloud.yandex.ru/docs/tutorials/infrastructure-management/terraform-quickstart#install-terraform)
 - [Harbor. Managing Helm Charts](https://goharbor.io/docs/1.10/working-with-projects/working-with-images/managing-helm-charts/)
