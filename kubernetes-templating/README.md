@@ -98,7 +98,7 @@ sh.helm.release.v1.<release_name>.v3 helm.sh/release.v1 1 5s
 ~~~
 
 #### Add helm repo
-Добавим репозиторий helm/stable и bitnami. По умолчанию в Helm 3 не установлен репозиторий stable.
+Добавим репозиторий helm/stable. По умолчанию в Helm 3 не установлен репозиторий stable.
 ~~~bash
 helm repo add stable https://charts.helm.sh/stable
 ~~~
@@ -109,7 +109,6 @@ helm repo add stable https://charts.helm.sh/stable
 helm repo list
 ~~~
 ~~~
-bitnami                 https://charts.bitnami.com/bitnami                
 stable                  https://charts.helm.sh/stable     
 ~~~
 
@@ -700,6 +699,33 @@ kubectl get secret secret -n hipster-shop -o yaml | grep visibleKey | awk '{prin
 hiddenValue%
 ~~~
 
+### Проверка
+
+Поместим все получившиеся helm chart's в установленный harbor в публичный проект `otus-kuber`.
+
+~~~bash
+helm package frontend
+helm package hipster-shop
+helm plugin install https://github.com/chartmuseum/helm-push
+helm registry login https://harbor.158.160.47.10.sslip.io/ u <user> -p <password>
+helm repo add templating https://harbor.158.160.47.10.sslip.io/chartrepo/otus-kuber
+helm cm-push -u <user> -p <password>  templating/frontend-0.1.0.tgz templating 
+helm cm-push -u <user> -p <password>  templating/hipster-shop-0.1.0.tgz templating
+~~~
+~~~bash
+bash ./repo.sh
+~~~
+
+~~~bash
+helm search repo templating
+~~~
+~~~
+NAME                    CHART VERSION   APP VERSION     DESCRIPTION                
+templating/frontend     0.1.0           1.16.0          A Helm chart for Kubernetes
+templating/hipster-shop 0.1.0           1.16.0          A Helm chart for Kubernetes
+~~~
+
+
 # **Полезное:**
 
 Start
@@ -712,12 +738,14 @@ Stop
 yc managed-kubernetes cluster stop k8s-4otus
 ~~~
 
-
-
+Ссылки на инфру:
+- https://harbor.158.160.47.10.sslip.io/harbor/projects/2/repositories
+- https://chartmuseum.158.160.47.10.sslip.io/
+- https://shop.158.160.47.10.sslip.io/
 
 
 - [Securing NGINX-ingress](https://cert-manager.io/docs/tutorials/acme/nginx-ingress/)
 - [Начало работы с Terraform](https://cloud.yandex.ru/docs/tutorials/infrastructure-management/terraform-quickstart#install-terraform)
-
+- [Harbor. Managing Helm Charts](https://goharbor.io/docs/1.10/working-with-projects/working-with-images/managing-helm-charts/)
 
 </details>
