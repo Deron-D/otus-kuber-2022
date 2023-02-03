@@ -823,9 +823,290 @@ hipster-shop   replicaset.apps/shippingservice-5b4c46459c   1         1         
 Отпилим еще один (любой) микросервис из `all-hipster-shop.yaml` и самостоятельно займитесь его kustomизацией.
 В минимальном варианте достаточно реализовать установку на два окружения - `hipster-shop` (namespace `hipster-shop` ) и `hipster-
 shop-prod` (namespace `hipster-shop-prod` ) из одних манифестов `deployment` и `service`
+Окружения должны отличаться:
+ - Набором labels во всех манифестах
+ - Префиксом названий ресурсов
+ - Image Tag, Memory Limits, Replicas
+
 ~~~bash
+kubectl apply -k ./kustomize/overrides/dev
+kubectl apply -k ./kustomize/overrides/prod
+~~~
+~~~bash
+kubectl describe pods -l app=dev-adservice -n hipster-shop
+~~~
+~~~
+Name:             dev-adservice-76c8b5f8d7-z7n9k
+Namespace:        hipster-shop
+Priority:         0
+Service Account:  default
+Node:             cl1sdl9jmenq18nt5jbd-aled/10.130.0.6
+Start Time:       Fri, 03 Feb 2023 18:02:43 +0300
+Labels:           app=dev-adservice
+env=dev
+pod-template-hash=76c8b5f8d7
+Annotations:      cni.projectcalico.org/containerID: dfd0489d0342b20dc0e356f7431d0595ee040e2b9deef1238ec7fbab571a05ba
+cni.projectcalico.org/podIP: 10.112.129.87/32
+cni.projectcalico.org/podIPs: 10.112.129.87/32
+Status:           Running
+IP:               10.112.129.87
+IPs:
+IP:           10.112.129.87
+Controlled By:  ReplicaSet/dev-adservice-76c8b5f8d7
+Containers:
+server:
+Container ID:   containerd://dd8d3b029b46fdc19e1892c8659afa079923d146a8d9612a418ff25be6eac99e
+Image:          gcr.io/google-samples/microservices-demo/adservice:v0.5.1
+Image ID:       gcr.io/google-samples/microservices-demo/adservice@sha256:645c53eab9c6b0f0a6604aaece6a21e9c2e952aec9c88765ede7a2f8f5015f5e
+Port:           9555/TCP
+Host Port:      0/TCP
+State:          Running
+Started:      Fri, 03 Feb 2023 18:02:52 +0300
+Ready:          True
+Restart Count:  0
+Limits:
+cpu:     300m
+memory:  300Mi
+Requests:
+cpu:      200m
+memory:   180Mi
+Liveness:   exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+Readiness:  exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+Environment:
+PORT:  9555
+Mounts:
+/var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-s9ghg (ro)
+Conditions:
+Type              Status
+Initialized       True
+Ready             True
+ContainersReady   True
+PodScheduled      True
+Volumes:
+kube-api-access-s9ghg:
+Type:                    Projected (a volume that contains injected data from multiple sources)
+TokenExpirationSeconds:  3607
+ConfigMapName:           kube-root-ca.crt
+ConfigMapOptional:       <nil>
+DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+Type     Reason     Age   From               Message
+  ----     ------     ----  ----               -------
+Normal   Scheduled  12m   default-scheduler  Successfully assigned hipster-shop/dev-adservice-76c8b5f8d7-z7n9k to cl1sdl9jmenq18nt5jbd-aled
+Normal   Pulling    12m   kubelet            Pulling image "gcr.io/google-samples/microservices-demo/adservice:v0.5.1"
+Normal   Pulled     12m   kubelet            Successfully pulled image "gcr.io/google-samples/microservices-demo/adservice:v0.5.1" in 7.706890244s
+Normal   Created    12m   kubelet            Created container server
+Normal   Started    12m   kubelet            Started container server
 ~~~
 
+~~~bash
+kubectl describe pods -l app=adservice -n hipster-shop-prod
+~~~
+~~~
+Name:             prod-adservice-56b7987989-2nxz8
+Namespace:        hipster-shop-prod
+Priority:         0
+Service Account:  default
+Node:             cl1sdl9jmenq18nt5jbd-ahak/10.130.0.15
+Start Time:       Fri, 03 Feb 2023 18:22:21 +0300
+Labels:           app=adservice
+                  pod-template-hash=56b7987989
+Annotations:      cni.projectcalico.org/containerID: 734d5fbeafb98a98a672f7252f69125bb41d18576d3d0c643f224af7652b7103
+                  cni.projectcalico.org/podIP: 10.112.128.105/32
+                  cni.projectcalico.org/podIPs: 10.112.128.105/32
+Status:           Running
+IP:               10.112.128.105
+IPs:
+  IP:           10.112.128.105
+Controlled By:  ReplicaSet/prod-adservice-56b7987989
+Containers:
+  server:
+    Container ID:   containerd://4c62bc5787f1282357688cf01f90c966e22e5dfb616c3486e70deff662f771b1
+    Image:          gcr.io/google-samples/microservices-demo/adservice:v0.5.1
+    Image ID:       gcr.io/google-samples/microservices-demo/adservice@sha256:645c53eab9c6b0f0a6604aaece6a21e9c2e952aec9c88765ede7a2f8f5015f5e
+    Port:           9555/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Fri, 03 Feb 2023 18:22:22 +0300
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     300m
+      memory:  512Mi
+    Requests:
+      cpu:      200m
+      memory:   180Mi
+    Liveness:   exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+    Readiness:  exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+    Environment:
+      PORT:  9555
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-bfjxd (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             False 
+  ContainersReady   False 
+  PodScheduled      True 
+Volumes:
+  kube-api-access-bfjxd:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age   From               Message
+  ----     ------     ----  ----               -------
+  Normal   Scheduled  38s   default-scheduler  Successfully assigned hipster-shop-prod/prod-adservice-56b7987989-2nxz8 to cl1sdl9jmenq18nt5jbd-ahak
+  Normal   Pulled     37s   kubelet            Container image "gcr.io/google-samples/microservices-demo/adservice:v0.5.1" already present on machine
+  Normal   Created    37s   kubelet            Created container server
+  Normal   Started    37s   kubelet            Started container server
+  Warning  Unhealthy  7s    kubelet            Liveness probe failed: command "/bin/grpc_health_probe -addr=:9555" timed out
+  Warning  Unhealthy  7s    kubelet            Readiness probe failed: command "/bin/grpc_health_probe -addr=:9555" timed out
+
+
+Name:             prod-adservice-56b7987989-pmmfq
+Namespace:        hipster-shop-prod
+Priority:         0
+Service Account:  default
+Node:             cl1sdl9jmenq18nt5jbd-aled/10.130.0.6
+Start Time:       Fri, 03 Feb 2023 18:22:21 +0300
+Labels:           app=adservice
+                  pod-template-hash=56b7987989
+Annotations:      cni.projectcalico.org/containerID: 69c32f22c876518b71daf56bce0f19c096e0da2285c589e5a8a9ce5ff6aad6d4
+                  cni.projectcalico.org/podIP: 10.112.129.94/32
+                  cni.projectcalico.org/podIPs: 10.112.129.94/32
+Status:           Running
+IP:               10.112.129.94
+IPs:
+  IP:           10.112.129.94
+Controlled By:  ReplicaSet/prod-adservice-56b7987989
+Containers:
+  server:
+    Container ID:   containerd://35f28a7dfae8f2615157165a2e0771955604682778e81540f296989268872e04
+    Image:          gcr.io/google-samples/microservices-demo/adservice:v0.5.1
+    Image ID:       gcr.io/google-samples/microservices-demo/adservice@sha256:645c53eab9c6b0f0a6604aaece6a21e9c2e952aec9c88765ede7a2f8f5015f5e
+    Port:           9555/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Fri, 03 Feb 2023 18:22:22 +0300
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     300m
+      memory:  512Mi
+    Requests:
+      cpu:      200m
+      memory:   180Mi
+    Liveness:   exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+    Readiness:  exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+    Environment:
+      PORT:  9555
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-6p7gl (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             False 
+  ContainersReady   False 
+  PodScheduled      True 
+Volumes:
+  kube-api-access-6p7gl:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age   From               Message
+  ----     ------     ----  ----               -------
+  Normal   Scheduled  38s   default-scheduler  Successfully assigned hipster-shop-prod/prod-adservice-56b7987989-pmmfq to cl1sdl9jmenq18nt5jbd-aled
+  Normal   Pulled     37s   kubelet            Container image "gcr.io/google-samples/microservices-demo/adservice:v0.5.1" already present on machine
+  Normal   Created    37s   kubelet            Created container server
+  Normal   Started    37s   kubelet            Started container server
+  Warning  Unhealthy  7s    kubelet            Liveness probe failed: command "/bin/grpc_health_probe -addr=:9555" timed out
+  Warning  Unhealthy  7s    kubelet            Readiness probe failed: command "/bin/grpc_health_probe -addr=:9555" timed out
+
+
+Name:             prod-adservice-56b7987989-szzw9
+Namespace:        hipster-shop-prod
+Priority:         0
+Service Account:  default
+Node:             cl1sdl9jmenq18nt5jbd-ahak/10.130.0.15
+Start Time:       Fri, 03 Feb 2023 18:22:21 +0300
+Labels:           app=adservice
+                  pod-template-hash=56b7987989
+Annotations:      cni.projectcalico.org/containerID: e7f5fdd261eb4dc4a06ab77c36b83531ff9b89ae8b9d9a19b975c5a0d5eff45a
+                  cni.projectcalico.org/podIP: 10.112.128.106/32
+                  cni.projectcalico.org/podIPs: 10.112.128.106/32
+Status:           Running
+IP:               10.112.128.106
+IPs:
+  IP:           10.112.128.106
+Controlled By:  ReplicaSet/prod-adservice-56b7987989
+Containers:
+  server:
+    Container ID:   containerd://75aff4100a5f866f65b538e8b6bbcc22f1fe4bc19493cd4a6bb31570ca8e9aa0
+    Image:          gcr.io/google-samples/microservices-demo/adservice:v0.5.1
+    Image ID:       gcr.io/google-samples/microservices-demo/adservice@sha256:645c53eab9c6b0f0a6604aaece6a21e9c2e952aec9c88765ede7a2f8f5015f5e
+    Port:           9555/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Fri, 03 Feb 2023 18:22:22 +0300
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     300m
+      memory:  512Mi
+    Requests:
+      cpu:      200m
+      memory:   180Mi
+    Liveness:   exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+    Readiness:  exec [/bin/grpc_health_probe -addr=:9555] delay=20s timeout=1s period=15s #success=1 #failure=3
+    Environment:
+      PORT:  9555
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-q8jsx (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             False 
+  ContainersReady   False 
+  PodScheduled      True 
+Volumes:
+  kube-api-access-q8jsx:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age   From               Message
+  ----     ------     ----  ----               -------
+  Normal   Scheduled  38s   default-scheduler  Successfully assigned hipster-shop-prod/prod-adservice-56b7987989-szzw9 to cl1sdl9jmenq18nt5jbd-ahak
+  Normal   Pulled     37s   kubelet            Container image "gcr.io/google-samples/microservices-demo/adservice:v0.5.1" already present on machine
+  Normal   Created    37s   kubelet            Created container server
+  Normal   Started    37s   kubelet            Started container server
+  Warning  Unhealthy  7s    kubelet            Liveness probe failed: command "/bin/grpc_health_probe -addr=:9555" timed out
+  Warning  Unhealthy  7s    kubelet            Readiness probe failed: command "/bin/grpc_health_probe -addr=:9555" timed out
+~~~
 
 # **Полезное:**
 
