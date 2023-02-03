@@ -701,16 +701,15 @@ hiddenValue%
 
 ### Проверка
 
-Поместим все получившиеся helm chart's в установленный harbor в публичный проект `otus-kuber`.
-
+Поместим все получившиеся helm chart's в установленный `harbor` ([https://harbor.158.160.47.10.sslip.io/](https://harbor.158.160.47.10.sslip.io/)) в публичный проект `otus-kuber`.
 ~~~bash
 helm package frontend
 helm package hipster-shop
 helm plugin install https://github.com/chartmuseum/helm-push
 helm registry login https://harbor.158.160.47.10.sslip.io/ u <user> -p <password>
 helm repo add templating https://harbor.158.160.47.10.sslip.io/chartrepo/otus-kuber
-helm cm-push -u <user> -p <password>  templating/frontend-0.1.0.tgz templating 
-helm cm-push -u <user> -p <password>  templating/hipster-shop-0.1.0.tgz templating
+helm cm-push -u <user> -p <password> templating/frontend-0.1.0.tgz templating 
+helm cm-push -u <user> -p <password> templating/hipster-shop-0.1.0.tgz templating
 ~~~
 ~~~bash
 bash ./repo.sh
@@ -723,6 +722,108 @@ helm search repo templating
 NAME                    CHART VERSION   APP VERSION     DESCRIPTION                
 templating/frontend     0.1.0           1.16.0          A Helm chart for Kubernetes
 templating/hipster-shop 0.1.0           1.16.0          A Helm chart for Kubernetes
+~~~
+
+### 8. Kubecfg
+
+Вынесем манифесты описывающие `service` и `deployment` микросервисов `paymentservice` и `shippingservice` из файла `all-hipster-shop.yaml`
+в директорию `./kubecfg`
+~~~bash
+tree -L 1 kubecfg
+~~~
+~~~
+kubecfg
+├── paymentservice-deployment.yaml
+├── paymentservice-service.yaml
+├── shippingservice-deployment.yaml
+└── shippingservice-service.yaml
+
+0 directories, 4 files
+~~~
+
+Обновим релиз
+~~~bash
+helm upgrade hipster-shop-release -n hipster-shop hipster-shop
+~~~
+
+Проверим, что микросервисы `paymentservice` и `shippingservice` исчезли из установки и магазин стал работать некорректно (при нажатии на кнопку `Add to Cart`)
+~~~bash
+kubectl get all -A -l app=paymentservice
+kubectl get all -A -l app=shippingservice
+~~~
+~~~
+No resources found
+No resources found
+~~~
+~~~
+Uh, oh!
+Something has failed. Below are some details for debugging.
+HTTP Status: 500 Internal Server Error
+~~~
+
+Установим [kubecfg](https://github.com/vmware-archive/kubecfg/releases)
+~~~bash
+wget https://github.com/vmware-archive/kubecfg/releases/download/v0.22.0/kubecfg-linux-amd64
+install kubecfg-linux-amd64 ~/bin/kubecfg
+rm -f kubecfg-linux-amd64
+kubecfg version
+~~~
+~~~
+kubecfg version: v0.22.0
+jsonnet version: v0.17.0
+client-go version: v0.0.0-master+$Format:%h$
+~~~
+
+Kubecfg предполагает хранение манифестов в файлах формата `.jsonnet` и их генерацию перед установкой. Пример такого файла можно найти в [официальном репозитории](https://github.com/bitnami/kubecfg/blob/master/examples/guestbook.jsonnet)
+Напишем по аналогии свой `.jsonnet` файл - [services.jsonnet](./kubecfg/services.jsonnet).
+Для начала в файле мы должны указать `libsonnet` библиотеку, которую будем использовать для генерации манифестов. В домашней работе воспользуемся готовой от
+от [bitnami](https://github.com/bitnami-labs/kube-libsonnet/)
+Импортируем ее:
+~~~json
+local kube = import "https://github.com/bitnami-labs/kube-libsonnet/raw/52ba963ca44f7a4960aeae9ee0fbee44726e481f/kube.libsonnet";
+...
+~~~
+Общая логика задачи следующая: 
+1. Пишем общий для сервисов , включающий описание `service` и `deployment`
+2. Наследуемся от него, указывая параметры для конкретных сервисов: [payment-shipping.jsonnet](https://raw.githubusercontent.com/express42/otus-platform-snippets/master/Module-04/05-Templating/hipster-shop-jsonnet/payment-shipping.jsonnet)
+>  Рекомендуем не заглядывать в сниппеты в ссылках и попробовать самостоятельно разобраться с jsonnet 
+> В качестве подсказки можно использовать и готовый `services.jsonnet` , который должен выглядеть примерно следующим образом: [services.jsonnet](https://raw.githubusercontent.com/express42/otus-platform-snippets/master/Module-04/05-Templating/hipster-shop-jsonnet/services.jsonnet)
+
+Проверим, что манифесты генерируются корректно:
+~~~bash
+kubecfg show kubecfg/services.jsonnet
+~~~
+
+И установим их:
+~~~bash
+kubecfg update kubecfg/services.jsonnet --namespace hipster-shop
+~~~
+
+Проверим установку:
+~~~bash
+kubectl get all -A -l app=paymentservice
+kubectl get all -A -l app=shippingservice
+~~~
+~~~
+NAMESPACE      NAME                                  READY   STATUS    RESTARTS   AGE
+hipster-shop   pod/paymentservice-7965b9f4cf-dmsmf   1/1     Running   0          61s
+
+NAMESPACE      NAME                                        DESIRED   CURRENT   READY   AGE
+hipster-shop   replicaset.apps/paymentservice-7965b9f4cf   1         1         1       61s
+➜  kubernetes-templating git:(kubernetes-templating) ✗ kubectl get all -A -l app=shippingservice
+NAMESPACE      NAME                                   READY   STATUS    RESTARTS   AGE
+hipster-shop   pod/shippingservice-5b4c46459c-8ghpr   1/1     Running   0          62s
+
+NAMESPACE      NAME                                         DESIRED   CURRENT   READY   AGE
+hipster-shop   replicaset.apps/shippingservice-5b4c46459c   1         1         1       62s
+~~~
+
+### 9. Kustomize | Самостоятельное задание
+
+Отпилим еще один (любой) микросервис из `all-hipster-shop.yaml` и самостоятельно займитесь его kustomизацией.
+В минимальном варианте достаточно реализовать установку на два окружения - `hipster-shop` (namespace `hipster-shop` ) и `hipster-
+shop-prod` (namespace `hipster-shop-prod` ) из одних манифестов `deployment` и `service`
+~~~bash
 ~~~
 
 
@@ -738,7 +839,7 @@ Stop
 yc managed-kubernetes cluster stop k8s-4otus
 ~~~
 
-Ссылки на инфру:
+Ссылки на инф-ру:
 - https://harbor.158.160.47.10.sslip.io/harbor/projects/2/repositories
 - https://chartmuseum.158.160.47.10.sslip.io/
 - https://shop.158.160.47.10.sslip.io/
