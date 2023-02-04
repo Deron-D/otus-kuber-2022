@@ -1,4 +1,4 @@
-# **Лекция №8: Custom Resource Definitions. Operators // ДЗ **
+# **Лекция №8: Custom Resource Definitions. Operators // ДЗ**
 > _Custom Resource Definitions. Operators_
 <details>
   <summary>kubernetes-operators</summary>
