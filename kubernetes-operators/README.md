@@ -23,6 +23,53 @@
 
 ## **Выполнено:**
 
+### 1. Подготовка
+
+Запустим kubernetes кластер в minikube/создадим поддиректорию `deploy`
+~~~bash
+mkdir -p ./deploy
+minikube start
+~~~
+
+### 2. Что должно быть в описании MySQL
+
+Для создания pod с MySQL оператору понадобится знать:
+-  Какой образ с MySQL использовать
+-  Какую db создать
+-  Какой пароль задать для доступа к MySQL
+
+### 3. CustomResource
+
+Создадим CustomResource `deploy/cr.yml` со следующим содержимым:
+~~~yaml
+apiVersion: otus.homework/v1
+kind: MySQL
+metadata:
+  name: mysql-instance
+spec:
+  image: mysql:5.7
+  database: otus-database
+  password: # otuspassword  # Так делать не нужно, следует использовать secret
+    valueFrom:
+      secretKeyRef:
+        name: mysql-secrets
+        key: mysql-password
+  storage_size: 1Gi
+usless_data: "useless info"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secrets
+type: Opaque
+data:
+  mysql-password: b3R1c3Bhc3N3b3Jk
+~~~
+
+~~~bash
+echo -n otuspassword | base64
+~~~
+
 
 # **Полезное:**
 
