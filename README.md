@@ -6,3 +6,4 @@ Deron-D Platform repository
 - [04 kubernetes-volumes](kubernetes-volumes/README.md)
 - [07 kubernetes-templating](kubernetes-templating/README.md)
 - [08 kubernetes-operators](kubernetes-operators/README.md)
+- [09 kubernetes-monitoring](kubernetes-monitoring/README.md)
