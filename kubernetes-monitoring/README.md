@@ -21,8 +21,6 @@
 
 ## **Выполнено:**
 
-### 1. Подготовка:
-
 - Запускаем minikube
 ~~~bash
 minikube delete && minikube start --kubernetes-version=v1.23.0 --memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.bind-address=0.0.0.0 --extra-config=controller-manager.bind-address=0.0.0.0
@@ -43,7 +41,7 @@ kubectl wait \
 kubectl apply -f manifests/
 ~~~
 
-- Готовим манифест для 'nginx' и применяем:
+- Готовим манифест для `nginx` и применяем:
 ~~~bash
 kubectl apply -f ./nginx
 ~~~
