@@ -1,0 +1,12 @@
+tolerations:
+- key: "node-role"
+  operator: "Equal"
+  value: "infra"
+  effect: "NoSchedule"
+
+#nodeSelector:
+#  cloud.google.com/gke-nodepool: infra-pool
+
+nodeSelector:
+  yandex.cloud/node-group-id: cl11c4i0ogni7dhcs84h
+

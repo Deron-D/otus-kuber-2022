@@ -1,14 +1,5 @@
-terraform {
-  required_providers {
-    yandex = {
-      source = "yandex-cloud/yandex"
-    }
-  }
-  required_version = ">= 0.13"
-}
-
 provider "yandex" {
-  # version                  = 0.35
+  #version = 0.85
   #service_account_key_file = var.service_account_key_file
   token     = var.token
   cloud_id  = var.cloud_id
@@ -80,6 +71,7 @@ resource "yandex_kubernetes_node_group" "infra-pool" {
   cluster_id = yandex_kubernetes_cluster.k8s-cluster.id
   version    = var.k8s_version
   name       = "infra-pool"
+#  node_taints = ["node-role=infra:NoSchedule"]
 
   instance_template {
     platform_id = var.platform_id
@@ -122,4 +114,6 @@ resource "yandex_kubernetes_node_group" "infra-pool" {
     }
   }
 }
+
+
 

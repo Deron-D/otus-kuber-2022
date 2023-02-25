@@ -2,4 +2,6 @@
 *.log
 .idea/
 *.tfvars
+*.tfstate
+
 
