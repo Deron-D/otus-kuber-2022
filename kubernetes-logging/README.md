@@ -38,19 +38,14 @@ terraform apply
 ~~~bash
 yc managed-kubernetes cluster list-node-groups k8s-4otus
 yc managed-kubernetes node-group list
-yc managed-kubernetes node-group list-nodes infra-pool
 ~~~
 ~~~
-+--------------------------------+---------------------------+--------------------------------+-------------+--------+
-|         CLOUD INSTANCE         |      KUBERNETES NODE      |           RESOURCES            |    DISK     | STATUS |
-+--------------------------------+---------------------------+--------------------------------+-------------+--------+
-| ef3pdkf839gkc5n0o9rh           | cl14c492d4hm419b06ho-anuh | 2 100% core(s), 8.0 GB of      | 30.0 GB hdd | READY  |
-| RUNNING_ACTUAL                 |                           | memory                         |             |        |
-| ef37n1rdp4n92hes4vl0           | cl14c492d4hm419b06ho-eqog | 2 100% core(s), 8.0 GB of      | 30.0 GB hdd | READY  |
-| RUNNING_ACTUAL                 |                           | memory                         |             |        |
-| ef3deolh8fk91t79omv6           | cl14c492d4hm419b06ho-ixov | 2 100% core(s), 8.0 GB of      | 30.0 GB hdd | READY  |
-| RUNNING_ACTUAL                 |                           | memory                         |             |        |
-+--------------------------------+---------------------------+--------------------------------+-------------+--------+
++----------------------+----------------------+--------------+----------------------+---------------------+---------+------+
+|          ID          |      CLUSTER ID      |     NAME     |  INSTANCE GROUP ID   |     CREATED AT      | STATUS  | SIZE |
++----------------------+----------------------+--------------+----------------------+---------------------+---------+------+
+| cat923baqsdrsiilosoh | cate3n1s67rc1lnmknbg | infra-pool   | cl1a1v5ptf3j9fo85vat | 2023-02-25 13:27:54 | RUNNING |    3 |
+| catj1ipforjm4reolmda | cate3n1s67rc1lnmknbg | default-pool | cl13es62d7a7s7q9dfgn | 2023-02-25 13:27:54 | RUNNING |    1 |
++----------------------+----------------------+--------------+----------------------+---------------------+---------+------+
 ~~~
 
 В результате должна получиться следующая конфигурация кластера:
@@ -59,19 +54,23 @@ kubectl get nodes -o wide
 ~~~
 
 ~~~
-NAME                        STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP     OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
-cl14c492d4hm419b06ho-anuh   Ready    <none>   24m   v1.23.6   10.130.0.10   51.250.47.239   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
-cl14c492d4hm419b06ho-eqog   Ready    <none>   24m   v1.23.6   10.130.0.33   51.250.36.137   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
-cl14c492d4hm419b06ho-ixov   Ready    <none>   24m   v1.23.6   10.130.0.12   51.250.37.122   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
-cl1erdumrsmef8ne1tpu-oheq   Ready    <none>   48m   v1.23.6   10.130.0.31   51.250.37.252   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
+NAME                        STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP     OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+cl13es62d7a7s7q9dfgn-ewuh   Ready    <none>   2m54s   v1.23.6   10.130.0.25   51.250.43.45    Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
+cl1a1v5ptf3j9fo85vat-aven   Ready    <none>   2m55s   v1.23.6   10.130.0.22   51.250.44.241   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
+cl1a1v5ptf3j9fo85vat-ehif   Ready    <none>   2m57s   v1.23.6   10.130.0.13   51.250.45.6     Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
+cl1a1v5ptf3j9fo85vat-upaz   Ready    <none>   2m50s   v1.23.6   10.130.0.14   51.250.38.122   Ubuntu 20.04.4 LTS   5.4.0-124-generic   containerd://1.6.7
 ~~~
+
+Выведем перечень всех нод из `infra-pool` 
 ~~~bash
 yc managed-kubernetes node-group list-nodes infra-pool
 ~~~
 
 Пометим ноды `infra-pool` тейнтом `node-role=infra:NoSchedule` 
 ~~~bash
-kubectl taint nodes cl19nlrekjkf36otr3kj-emoh node-role=infra:NoSchedule
+kubectl taint nodes cl1a1v5ptf3j9fo85vat-aven node-role=infra:NoSchedule
+kubectl taint nodes cl1a1v5ptf3j9fo85vat-ehif node-role=infra:NoSchedule
+kubectl taint nodes  cl1a1v5ptf3j9fo85vat-upaz node-role=infra:NoSchedule
 ~~~
 
 Проверим `taints` на нодах
@@ -79,28 +78,29 @@ kubectl taint nodes cl19nlrekjkf36otr3kj-emoh node-role=infra:NoSchedule
 kubectl get nodes -o json | jq '.items[].spec.taints'
 ~~~
 ~~~
-[
-  {
-    "effect": "NoSchedule",
-    "key": "node-role",
-    "value": "infra"
-  }
-]
-[
-  {
-    "effect": "NoSchedule",
-    "key": "node-role",
-    "value": "infra"
-  }
-]
-[
-  {
-    "effect": "NoSchedule",
-    "key": "node-role",
-    "value": "infra"
-  }
-]
 null
+[
+  {
+    "effect": "NoSchedule",
+    "key": "node-role",
+    "value": "infra"
+  }
+]
+[
+  {
+    "effect": "NoSchedule",
+    "key": "node-role",
+    "value": "infra"
+  }
+]
+[
+  {
+    "effect": "NoSchedule",
+    "key": "node-role",
+    "value": "infra"
+  }
+]
+
 ~~~
 
 ### 2. Установка HipsterShop
@@ -117,19 +117,19 @@ kubectl apply -f https://raw.githubusercontent.com/express42/otus-platform-snipp
 kubectl get pods -n microservices-demo -o wide
 ~~~
 ~~~
-NAME                                     READY   STATUS             RESTARTS      AGE   IP              NODE                        NOMINATED NODE   READINESS GATES
-adservice-548889999f-mv2db               0/1     ImagePullBackOff   0             16m   10.112.128.20   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-cartservice-75cc479cdd-wl2xl             1/1     Running            2 (14m ago)   16m   10.112.128.15   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-checkoutservice-699758c6d9-r5w9n         1/1     Running            0             16m   10.112.128.10   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-currencyservice-7fc9cfc9cf-kqk9f         1/1     Running            0             16m   10.112.128.17   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-emailservice-6c8d49f789-9j6hq            1/1     Running            0             16m   10.112.128.9    cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-frontend-5b8c8bf745-csmrr                1/1     Running            0             16m   10.112.128.12   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-loadgenerator-799c7664dd-n4tdq           1/1     Running            4 (14m ago)   16m   10.112.128.16   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-paymentservice-557f767677-jp9fp          1/1     Running            0             16m   10.112.128.13   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-productcatalogservice-7b69d99c89-gl49b   1/1     Running            0             16m   10.112.128.14   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-recommendationservice-7f78d66cc9-v9qz4   1/1     Running            0             16m   10.112.128.11   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-redis-cart-fd8d87cdb-9vmhj               1/1     Running            0             16m   10.112.128.19   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
-shippingservice-64999cdc59-vttr8         1/1     Running            0             16m   10.112.128.18   cl1erdumrsmef8ne1tpu-oheq   <none>           <none>
+NAME                                     READY   STATUS             RESTARTS        AGE     IP              NODE                        NOMINATED NODE   READINESS GATES
+adservice-548889999f-25vd2               0/1     ImagePullBackOff   0               3m53s   10.112.130.15   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+cartservice-75cc479cdd-f2dgx             1/1     Running            2 (2m42s ago)   3m54s   10.112.130.10   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+checkoutservice-699758c6d9-t25zv         1/1     Running            0               3m55s   10.112.130.5    cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+currencyservice-7fc9cfc9cf-2bn76         1/1     Running            0               3m54s   10.112.130.11   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+emailservice-6c8d49f789-nhjpb            1/1     Running            0               3m55s   10.112.130.4    cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+frontend-5b8c8bf745-zfp2t                1/1     Running            0               3m55s   10.112.130.7    cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+loadgenerator-799c7664dd-z6l6f           1/1     Running            4 (118s ago)    3m54s   10.112.130.12   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+paymentservice-557f767677-4c99z          1/1     Running            0               3m54s   10.112.130.8    cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+productcatalogservice-7b69d99c89-4nkdv   1/1     Running            0               3m54s   10.112.130.9    cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+recommendationservice-7f78d66cc9-4r4jq   1/1     Running            0               3m55s   10.112.130.6    cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+redis-cart-fd8d87cdb-rrhjf               1/1     Running            0               3m53s   10.112.130.14   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+shippingservice-64999cdc59-s2w45         1/1     Running            0               3m54s   10.112.130.13   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
 ~~~
 
 ### 3. Установка EFK стека | Helm charts
@@ -154,8 +154,10 @@ helm upgrade --install fluent-bit stable/fluent-bit --namespace observability
 И ловим `403` - `No comments...`
 Идем другим путем:
 ~~~bash
-helm repo remove elastic 
+kubectl create ns observability
+#helm repo remove elastic 
 helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update bitnami
 # ElasticSearch
 helm upgrade --install elasticsearch bitnami/elasticsearch --namespace observability
 # Kibana
@@ -169,18 +171,18 @@ helm upgrade --install fluent-bit stable/fluent-bit --namespace observability
 kubectl get pods -n observability -o wide
 ~~~
 
-Всё поставилось так же, на ту же первую ноду `cl146c3f8e8j94epo9uf-iwop`
+Всё поставилось так же, на ту же первую ноду `cl13es62d7a7s7q9dfgn-ewuh`
 ~~~
 NAME                           READY   STATUS    RESTARTS   AGE     IP              NODE                        NOMINATED NODE   READINESS GATES
-elasticsearch-coordinating-0   0/1     Running   0          2m11s   10.112.131.18   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-elasticsearch-coordinating-1   0/1     Running   0          2m11s   10.112.131.20   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-elasticsearch-data-0           0/1     Running   0          2m11s   10.112.131.23   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-elasticsearch-data-1           0/1     Running   0          2m11s   10.112.131.21   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-elasticsearch-ingest-0         0/1     Running   0          2m11s   10.112.131.17   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-elasticsearch-ingest-1         0/1     Running   0          2m11s   10.112.131.19   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-elasticsearch-master-0         0/1     Running   0          2m11s   10.112.131.22   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-elasticsearch-master-1         0/1     Running   0          2m11s   10.112.131.24   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
-fluent-bit-bpr5l               1/1     Running   0          12m     10.112.131.16   cl146c3f8e8j94epo9uf-iwop   <none>           <none>
+elasticsearch-coordinating-0   0/1     Running   0          2m11s   10.112.131.18   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+elasticsearch-coordinating-1   0/1     Running   0          2m11s   10.112.131.20   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+elasticsearch-data-0           0/1     Running   0          2m11s   10.112.131.23   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+elasticsearch-data-1           0/1     Running   0          2m11s   10.112.131.21   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+elasticsearch-ingest-0         0/1     Running   0          2m11s   10.112.131.17   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+elasticsearch-ingest-1         0/1     Running   0          2m11s   10.112.131.19   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+elasticsearch-master-0         0/1     Running   0          2m11s   10.112.131.22   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+elasticsearch-master-1         0/1     Running   0          2m11s   10.112.131.24   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
+fluent-bit-bpr5l               1/1     Running   0          12m     10.112.131.16   cl13es62d7a7s7q9dfgn-ewuh  <none>           <none>
 ~~~
 
 Создадим файл `elasticsearch.values.yaml` , будем указывать в этом файле нужные нам values.

@@ -1,12 +1,48 @@
-tolerations:
-- key: "node-role"
-  operator: "Equal"
-  value: "infra"
-  effect: "NoSchedule"
+master:
+  replicaCount: 3
+  nodeSelector: &nodeSelector
+    yandex.cloud/node-group-id: cat923baqsdrsiilosoh
 
-#nodeSelector:
-#  cloud.google.com/gke-nodepool: infra-pool
+  tolerations: &tolerations
+    - key: node-role
+      operator: Equal
+      value: infra
+      effect: NoSchedule
 
-nodeSelector:
-  yandex.cloud/node-group-id: cl11c4i0ogni7dhcs84h
+data:
+  replicaCount: 3
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
 
+coordinating:
+  replicaCount: 3
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
+
+ingest:
+  replicaCount: 3
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
+
+metrics:
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
+
+
+#  affinity:
+#    nodeAffinity:
+#      requiredDuringSchedulingIgnoredDuringExecution:
+#        nodeSelectorTerms:
+#          - matchExpressions:
+#              - key: kubernetes.io/os
+#                operator: In
+#                values:
+#                  - linux
