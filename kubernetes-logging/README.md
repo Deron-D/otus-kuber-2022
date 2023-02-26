@@ -288,17 +288,26 @@ kubectl logs -n observability -l app=fluent-bit --tail 3
 [2023/02/25 19:55:40] [ warn] [engine] failed to flush chunk '1-1677333615.980802731.flb', retry in 239 seconds: task_id=22, input=tail.0 > output=forward.0
 ~~~
 
-### 5.Fluent Bit
+### 5. Fluent Bit
 
 Попробуем исправить проблему. Создадим файл `fluentbit.values.yaml` и добавим туда:
 ~~~yaml
 config:
   outputs: |
     [OUTPUT]
-        Name  es
-        Match *
-        Host  elasticsearch
-        Port  9200
+        Name es
+        Match kube.*
+        Host elasticsearch
+        Logstash_Format On
+        Retry_Limit False
+
+    [OUTPUT]
+        Name es
+        Match host.*
+        Host elasticsearch
+        Logstash_Format On
+        Logstash_Prefix node
+        Retry_Limit False
 
 nodeSelector: &nodeSelector
   yandex.cloud/node-group-id: cat923baqsdrsiilosoh
@@ -335,12 +344,23 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 config:
   outputs: |
     [OUTPUT]
-        Name  es
-        Match *
-        Host  elasticsearch
-        Port  9200
+        Name es
+        Match kube.*
+        Host elasticsearch
+        Logstash_Format On
+        Retry_Limit False
         Suppress_Type_Name On
         Replace_Dots    On
+
+    [OUTPUT]
+        Name es
+        Match host.*
+        Host elasticsearch
+        Logstash_Format On
+        Logstash_Prefix node
+        Retry_Limit False
+        Suppress_Type_Name On
+        Replace_Dots    On    
 
 nodeSelector: &nodeSelector
   yandex.cloud/node-group-id: cat923baqsdrsiilosoh
@@ -360,7 +380,51 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 
 Попробуем повторно создать 'index pattern' . В этот раз ситуация изменилась, и какие-то индексы в ElasticSearch уже есть:
 ![img_1.png](img_1.png)
-git 
+
+После установки можно заметить, что в `ElasticSearch` не попадают логи нашего приложения, т.к. `fluent-bit` не деплоится на ноду без тейнта.
+Убираем из `fluentbit.values.yaml` секцию
+~~~
+nodeSelector: &nodeSelector
+  yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+~~~
+
+Смотрим, что получилось:
+~~~bash
+kubectl get pod -n observability -l app.kubernetes.io/instance=fluent-bit -o wide
+~~~
+~~~
+NAME               READY   STATUS    RESTARTS   AGE   IP              NODE                        NOMINATED NODE   READINESS GATES
+fluent-bit-4tfzk   1/1     Running   0          12m   10.112.129.36   cl1a1v5ptf3j9fo85vat-aven   <none>           <none>
+fluent-bit-5crb6   1/1     Running   0          12m   10.112.130.90   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+fluent-bit-tt6w4   1/1     Running   0          12m   10.112.131.33   cl1a1v5ptf3j9fo85vat-upaz   <none>           <none>
+fluent-bit-zwvp8   1/1     Running   0          12m   10.112.128.39   cl1a1v5ptf3j9fo85vat-ehif   <none>           <none>
+~~~
+
+<details>
+  <summary>Очевидно Deprecated проблема</summary>
+Логи приложения все так же не попадают в `ElasticSearch`
+Причину возможно найти в логах pod с Fluent Bit, он пытается обработать JSON, отдаваемый приложением, и находит там дублирующиеся поля time и timestamp
+> GitHub issue, с более подробным описанием проблемы https://github.com/fluent/fluent-bit/issues/628
+
+Вариантов решения проблемы, озвученной ранее, несколько:
+ - Полностью отключить парсинг JSON внутри лога ключом  `filter.mergeJSONLog=false`
+ - Складывать содержимое лога после парсинга в отдельный ключ (в нашем случае для некоторых микросервисов возникнет проблема `illegal_argument_exception` с полем `time` ) 
+ - Изменить имя ключа ( `time_key` ) с датой, добавляемое самим Fluent Bit, на что-то, отличное от `@timestamp` . Это не решит проблему с тем, что останется поле `time` , которое также будет помечено дублирующимся
+ - "Вырезать" из логов поля `time` и `@timestamp`
+
+Пойдем другим путем и воспользуемся фильтром `Modify, который позволит удалить из логов "лишние" ключи:
+~~~yaml
+config:
+  filter: |
+    [ FILTER ]
+        Name modify
+        Match *
+        Remove time
+        Remove @timestamp
+...
+~~~
+</details>
+
 # **Полезное:**
 
 - https://registry.tfpla.net/providers/yandex-cloud/yandex/latest/docs/resources/kubernetes_node_group#node_taints
@@ -368,6 +432,7 @@ git
 - https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraints-for-pods
 - https://blog.kubecost.com/blog/kubernetes-taints/
 - https://docs.comcloud.xyz/
+- https://docs.fluentbit.io/manual/installation/kubernetes
 
 ~~~bash
 yc managed-kubernetes cluster stop k8s-4otus

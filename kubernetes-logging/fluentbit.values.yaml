@@ -1,15 +1,50 @@
 config:
+  inputs: |
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        multiline.parser docker, cri
+        Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+
+    [INPUT]
+        Name systemd
+        Tag host.*
+        Systemd_Filter _SYSTEMD_UNIT=kubelet.service
+        Read_From_Tail On
+
+  filter: |
+    [ FILTER ]
+        Name modify
+        Match *
+        Remove time
+        Remove @timestamp
+
   outputs: |
     [OUTPUT]
-        Name  es
-        Match *
-        Host  elasticsearch
-        Port  9200
+        Name es
+        Match kube.*
+        Host elasticsearch
+        Logstash_Format On
+        Retry_Limit False
         Suppress_Type_Name On
         Replace_Dots    On
 
-nodeSelector: &nodeSelector
-  yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+    [OUTPUT]
+        Name es
+        Match host.*
+        Host elasticsearch
+        Logstash_Format On
+        Logstash_Prefix node
+        Retry_Limit False
+        Suppress_Type_Name On
+        Replace_Dots    On
+
+#nodeSelector: &nodeSelector
+#  yandex.cloud/node-group-id:
+#    - cat923baqsdrsiilosoh
+#    - catj1ipforjm4reolmda
 
 tolerations: &tolerations
   - key: node-role
