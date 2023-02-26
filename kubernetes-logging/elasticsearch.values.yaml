@@ -36,6 +36,13 @@ metrics:
   tolerations:
     *tolerations
 
+#ingress:
+#  enabled: true
+#  pathType: ImplementationSpecific
+#  apiVersion: ""
+#  hostname: elasticsearch.local
+#  path: /
+
 
 #  affinity:
 #    nodeAffinity:

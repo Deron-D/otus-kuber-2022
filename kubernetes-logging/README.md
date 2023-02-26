@@ -162,8 +162,6 @@ helm repo update bitnami
 helm upgrade --install elasticsearch bitnami/elasticsearch --namespace observability
 # Kibana
 helm upgrade --install kibana bitnami/kibana --namespace observability
-# Fluent Bit
-helm upgrade --install fluent-bit stable/fluent-bit --namespace observability
 ~~~
 
 Смотрим, что получилось
@@ -188,22 +186,31 @@ fluent-bit-bpr5l               1/1     Running   0          12m     10.112.131.1
 Создадим файл `elasticsearch.values.yaml` , будем указывать в этом файле нужные нам values.
 Для начала, обратимся к файлу `values.yaml` в и найдем там ключ `tolerations`.
 
-~~~bash
-helm inspect values bitnami/elasticsearch | grep -A 5 'tolerations'
-~~~
-~~~bash
-helm inspect values bitnami/elasticsearch | grep -v '^ *#'  | grep -A 5 'tolerations'
-~~~
-
 Мы помним, что ноды из infra-pool имеют taint node-role=infra:NoSchedule . Давайте разрешим ElasticSearch запускаться на данных нодах
 > elasticsearch.values.yaml
 ~~~yaml
-tolerations:
-  - key: node-role
-    operator: Equal
-    value: infra
-    effect: NoSchedule
+master:
+  tolerations: &tolerations
+    - key: node-role
+      operator: Equal
+      value: infra
+      effect: NoSchedule
 
+data:
+  tolerations:
+    *tolerations
+
+coordinating:
+  tolerations:
+    *tolerations
+
+ingest:
+  tolerations:
+    *tolerations
+
+metrics:
+  tolerations:
+    *tolerations
 ~~~
 
 Обновим установку:
@@ -212,49 +219,163 @@ helm upgrade --install elasticsearch bitnami/elasticsearch --namespace observabi
 -f elasticsearch.values.yaml
 ~~~
 
-Смотрим, что получилось
-~~~bash
-kubectl get pods -n observability -o wide
-~~~
-
 Теперь ElasticSearch может запускаться на нодах из `infra-pool`, но это не означает, что он должен это делать.
-Исправим этот момент и добавим в `elasticsearch.values.yaml` `NodeSelector`, определяющий, на каких нодах мы можем запускать наши pod.
-~~~yaml
-nodeSelector:
-  yandex.cloud/node-group-id: <group-id> 
-~~~
+Исправим этот момент и добавим в `elasticsearch.values.yaml` `NodeSelector`, определяющий, на каких нодах мы можем запускать наши
+pod.
 ~~~bash
 yc managed-kubernetes node-group list
-yc managed-kubernetes node-group list-nodes infra-pool
+~~~
+~~~yaml
+master:
+  nodeSelector: &nodeSelector
+    yandex.cloud/node-group-id: cat923baqsdrsiilosoh
 ~~~
 
-Опять обновим установку:
-~~~bash
-helm upgrade --install elasticsearch bitnami/elasticsearch --namespace observability \
--f elasticsearch.values.yaml
-~~~
-~~~
-Error: UPGRADE FAILED: release: already exists
-~~~
+Корректируем соответственно `elasticsearch.values.yaml` для всех компонент `ElasticSearch` и перезапускаем деплой: 
 ~~~bash
 kubectl create ns observability
 helm uninstall elasticsearch --namespace observability
 helm upgrade --install elasticsearch bitnami/elasticsearch --namespace observability \
 -f elasticsearch.values.yaml
 ~~~
-Смотрим, что получилось
+
+Смотрим, что получилось:
 ~~~bash
-kubectl get pods -n observability -o wide
+kubectl get pods -n observability -o wide -l app.kubernetes.io/component=master
+~~~
+~~~
+NAME                     READY   STATUS    RESTARTS   AGE   IP              NODE                        NOMINATED NODE   READINESS GATES
+elasticsearch-master-0   1/1     Running   0          20m   10.112.129.12   cl1a1v5ptf3j9fo85vat-aven   <none>           <none>
+elasticsearch-master-1   1/1     Running   0          22m   10.112.128.11   cl1a1v5ptf3j9fo85vat-ehif   <none>           <none>
+elasticsearch-master-2   1/1     Running   0          24m   10.112.131.8    cl1a1v5ptf3j9fo85vat-upaz   <none>           <none>
 ~~~
 
+### 4. Установка nginx-ingress | Самостоятельное задание
 
+~~~bash
+yc managed-kubernetes cluster list
+~~~
+~~~bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update ingress-nginx
+~~~
+~~~bash
+kubectl create ns nginx-ingress
+helm upgrade --install nginx-ingress-release ingress-nginx/ingress-nginx --namespace=nginx-ingress --version="4.4.2"
+~~~
+~~~bash
+kubectl get svc -n nginx-ingress
+~~~
+~~~bash
+kubectl get svc -n observability
+~~~
+~~~bash
+# Kibana
+helm upgrade --install kibana bitnami/kibana --namespace observability \
+  --set "elasticsearch.hosts[0]=elasticsearch,elasticsearch.port=9200" -f kibana.values.yaml
+~~~
 
+Попробуем создать `index pattern` , и увидим, что в ElasticSearch пока что не обнаружено никаких данных:
+![img.png](img.png))
+
+Посмотрим в логи решения, которое отвечает за отправку логов (Fluent Bit) и увидим следующие строки:
+~~~bash
+kubectl logs -n observability -l app=fluent-bit --tail 3
+~~~
+~~~
+[2023/02/25 19:55:40] [ warn] net_tcp_fd_connect: getaddrinfo(host='fluentd'): Name or service not known
+[2023/02/25 19:55:40] [error] [out_fw] no upstream connections available
+[2023/02/25 19:55:40] [ warn] [engine] failed to flush chunk '1-1677333615.980802731.flb', retry in 239 seconds: task_id=22, input=tail.0 > output=forward.0
+~~~
+
+### 5.Fluent Bit
+
+Попробуем исправить проблему. Создадим файл `fluentbit.values.yaml` и добавим туда:
+~~~yaml
+config:
+  outputs: |
+    [OUTPUT]
+        Name  es
+        Match *
+        Host  elasticsearch
+        Port  9200
+
+nodeSelector: &nodeSelector
+  yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+
+tolerations: &tolerations
+  - key: node-role
+    operator: Equal
+    value: infra
+    effect: NoSchedule
+~~~
+
+Запускаем деплой `NotDeprecated` версии чарта: 
+~~~bash
+helm repo add fluent https://fluent.github.io/helm-charts
+helm upgrade --install fluent-bit fluent/fluent-bit \
+ --namespace observability -f fluentbit.values.yaml
+~~~
+
+Ловим в подах `fluent` ошибки 2х видов:
+~~~
+{"error":{"root_cause":[{"type":"illegal_argument_exception","reason":"Action/metadata line [1] contains an unknown parameter [_type]"}],"type":"illegal_argument_exception","reason":"Action/metadata line [1] contains an unknown parameter [_type]"},"status":400}
+~~~
+~~~
+[error] [engine] chunk '1-1677401624.242975823.flb' cannot be retried: task_id=0, input=tail.0 > output=es.0 
+~~~
+
+Приводим `fluentbit.values.yaml` в соответствии с рекомендациями:
+>https://docs.fluentbit.io/manual/pipeline/outputs/elasticsearch
+ 
+> https://github.com/fluent/fluent-bit/issues/4386.you
+
+к виду:
+~~~yaml
+config:
+  outputs: |
+    [OUTPUT]
+        Name  es
+        Match *
+        Host  elasticsearch
+        Port  9200
+        Suppress_Type_Name On
+        Replace_Dots    On
+
+nodeSelector: &nodeSelector
+  yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+
+tolerations: &tolerations
+  - key: node-role
+    operator: Equal
+    value: infra
+    effect: NoSchedule
+~~~
+
+и производим передеплой `fluent-bit`:
+~~~bash
+helm upgrade --install fluent-bit fluent/fluent-bit \
+--namespace observability -f fluentbit.values.yaml
+~~~
+
+Попробуем повторно создать 'index pattern' . В этот раз ситуация изменилась, и какие-то индексы в ElasticSearch уже есть:
+![img_1.png](img_1.png)
+git 
 # **Полезное:**
 
-https://registry.tfpla.net/providers/yandex-cloud/yandex/latest/docs/resources/kubernetes_node_group#node_taints
-https://cloud.yandex.ru/docs/managed-kubernetes/api-ref/NodeGroup/
-https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraints-for-pods
-https://blog.kubecost.com/blog/kubernetes-taints/
-https://docs.comcloud.xyz/
+- https://registry.tfpla.net/providers/yandex-cloud/yandex/latest/docs/resources/kubernetes_node_group#node_taints
+- https://cloud.yandex.ru/docs/managed-kubernetes/api-ref/NodeGroup/
+- https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraints-for-pods
+- https://blog.kubecost.com/blog/kubernetes-taints/
+- https://docs.comcloud.xyz/
+
+~~~bash
+yc managed-kubernetes cluster stop k8s-4otus
+~~~
+
+~~~bash
+yc managed-kubernetes cluster start k8s-4otus
+~~~
+
 
 </details>

@@ -1,0 +1,18 @@
+config:
+  outputs: |
+    [OUTPUT]
+        Name  es
+        Match *
+        Host  elasticsearch
+        Port  9200
+        Suppress_Type_Name On
+        Replace_Dots    On
+
+nodeSelector: &nodeSelector
+  yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+
+tolerations: &tolerations
+  - key: node-role
+    operator: Equal
+    value: infra
+    effect: NoSchedule
