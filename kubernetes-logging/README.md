@@ -261,7 +261,18 @@ helm repo update ingress-nginx
 ~~~
 ~~~bash
 kubectl create ns nginx-ingress
-helm upgrade --install nginx-ingress-release ingress-nginx/ingress-nginx --namespace=nginx-ingress --version="4.4.2"
+helm upgrade --install nginx-ingress-release ingress-nginx/ingress-nginx \
+ --namespace=nginx-ingress --version="4.4.2" \
+ -f nginx.values.yaml
+~~~
+~~~bash
+kubectl get pods -n nginx-ingress -o wide
+~~~
+~~~
+NAME                                                              READY   STATUS    RESTARTS   AGE     IP              NODE                        NOMINATED NODE   READINESS GATES
+nginx-ingress-release-ingress-nginx-controller-6d899c65c6-4bpm4   1/1     Running   0          3m49s   10.112.131.50   cl1a1v5ptf3j9fo85vat-upaz   <none>           <none>
+nginx-ingress-release-ingress-nginx-controller-6d899c65c6-4gr25   1/1     Running   0          3m49s   10.112.128.60   cl1a1v5ptf3j9fo85vat-ehif   <none>           <none>
+nginx-ingress-release-ingress-nginx-controller-6d899c65c6-h7gn4   1/1     Running   0          3m49s   10.112.129.53   cl1a1v5ptf3j9fo85vat-aven   <none>           <none>
 ~~~
 ~~~bash
 kubectl get svc -n nginx-ingress
@@ -288,26 +299,17 @@ kubectl logs -n observability -l app=fluent-bit --tail 3
 [2023/02/25 19:55:40] [ warn] [engine] failed to flush chunk '1-1677333615.980802731.flb', retry in 239 seconds: task_id=22, input=tail.0 > output=forward.0
 ~~~
 
-### 5. Fluent Bit
+### 5.Fluent Bit
 
 Попробуем исправить проблему. Создадим файл `fluentbit.values.yaml` и добавим туда:
 ~~~yaml
 config:
   outputs: |
     [OUTPUT]
-        Name es
-        Match kube.*
-        Host elasticsearch
-        Logstash_Format On
-        Retry_Limit False
-
-    [OUTPUT]
-        Name es
-        Match host.*
-        Host elasticsearch
-        Logstash_Format On
-        Logstash_Prefix node
-        Retry_Limit False
+        Name  es
+        Match *
+        Host  elasticsearch
+        Port  9200
 
 nodeSelector: &nodeSelector
   yandex.cloud/node-group-id: cat923baqsdrsiilosoh
@@ -344,23 +346,12 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 config:
   outputs: |
     [OUTPUT]
-        Name es
-        Match kube.*
-        Host elasticsearch
-        Logstash_Format On
-        Retry_Limit False
+        Name  es
+        Match *
+        Host  elasticsearch
+        Port  9200
         Suppress_Type_Name On
         Replace_Dots    On
-
-    [OUTPUT]
-        Name es
-        Match host.*
-        Host elasticsearch
-        Logstash_Format On
-        Logstash_Prefix node
-        Retry_Limit False
-        Suppress_Type_Name On
-        Replace_Dots    On    
 
 nodeSelector: &nodeSelector
   yandex.cloud/node-group-id: cat923baqsdrsiilosoh
@@ -381,50 +372,195 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 Попробуем повторно создать 'index pattern' . В этот раз ситуация изменилась, и какие-то индексы в ElasticSearch уже есть:
 ![img_1.png](img_1.png)
 
-После установки можно заметить, что в `ElasticSearch` не попадают логи нашего приложения, т.к. `fluent-bit` не деплоится на ноду без тейнта.
-Убираем из `fluentbit.values.yaml` секцию
-~~~
+После установки можно заметить, что в ElasticSearch не попадают логи нашего приложения, т.к. `fluentbit` не продеплоился на все ноды.
+Исключаем секцию из `fluentbit.values.yaml`
+~~~yaml
 nodeSelector: &nodeSelector
-  yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+~~~
+И приводим к виду:
+~~~yaml
+config:
+  outputs: |
+    [OUTPUT]
+        Name es
+        Match kube.*
+        Host elasticsearch
+        Port  9200
+        Logstash_Format On
+        Retry_Limit False
+        Suppress_Type_Name On
+        Replace_Dots    On
+
+    [OUTPUT]
+        Name es
+        Match host.*
+        Host elasticsearch
+        Port  9200
+        Logstash_Format On
+        Logstash_Prefix node
+        Retry_Limit False
+        Suppress_Type_Name On
+        Replace_Dots    On
+
+tolerations: &tolerations
+  - key: node-role
+    operator: Equal
+    value: infra
+    effect: NoSchedule
 ~~~
 
-Смотрим, что получилось:
+и производим передеплой `fluent-bit`:
+~~~bash
+helm upgrade --install fluent-bit fluent/fluent-bit \
+--namespace observability -f fluentbit.values.yaml
+~~~
+
+Проверяем:
 ~~~bash
 kubectl get pod -n observability -l app.kubernetes.io/instance=fluent-bit -o wide
 ~~~
 ~~~
-NAME               READY   STATUS    RESTARTS   AGE   IP              NODE                        NOMINATED NODE   READINESS GATES
-fluent-bit-4tfzk   1/1     Running   0          12m   10.112.129.36   cl1a1v5ptf3j9fo85vat-aven   <none>           <none>
-fluent-bit-5crb6   1/1     Running   0          12m   10.112.130.90   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
-fluent-bit-tt6w4   1/1     Running   0          12m   10.112.131.33   cl1a1v5ptf3j9fo85vat-upaz   <none>           <none>
-fluent-bit-zwvp8   1/1     Running   0          12m   10.112.128.39   cl1a1v5ptf3j9fo85vat-ehif   <none>           <none>
+NAME               READY   STATUS    RESTARTS   AGE    IP              NODE                        NOMINATED NODE   READINESS GATES
+fluent-bit-4tv67   1/1     Running   0          2m8s   10.112.129.43   cl1a1v5ptf3j9fo85vat-aven   <none>           <none>
+fluent-bit-6jhp6   1/1     Running   0          9s     10.112.130.93   cl13es62d7a7s7q9dfgn-ewuh   <none>           <none>
+fluent-bit-fnn4p   1/1     Running   0          41s    10.112.131.40   cl1a1v5ptf3j9fo85vat-upaz   <none>           <none>
+fluent-bit-lzsrn   1/1     Running   0          92s    10.112.128.50   cl1a1v5ptf3j9fo85vat-ehif   <none>           <none>
 ~~~
 
-<details>
-  <summary>Очевидно Deprecated проблема</summary>
-Логи приложения все так же не попадают в `ElasticSearch`
-Причину возможно найти в логах pod с Fluent Bit, он пытается обработать JSON, отдаваемый приложением, и находит там дублирующиеся поля time и timestamp
-> GitHub issue, с более подробным описанием проблемы https://github.com/fluent/fluent-bit/issues/628
+### 6. Мониторинг ElasticSearch
 
-Вариантов решения проблемы, озвученной ранее, несколько:
- - Полностью отключить парсинг JSON внутри лога ключом  `filter.mergeJSONLog=false`
- - Складывать содержимое лога после парсинга в отдельный ключ (в нашем случае для некоторых микросервисов возникнет проблема `illegal_argument_exception` с полем `time` ) 
- - Изменить имя ключа ( `time_key` ) с датой, добавляемое самим Fluent Bit, на что-то, отличное от `@timestamp` . Это не решит проблему с тем, что останется поле `time` , которое также будет помечено дублирующимся
- - "Вырезать" из логов поля `time` и `@timestamp`
+Помимо установки ElasticSearch, важно отслеживать его показатели и вовремя понимать, что пора предпринять какие-либо действия. Для
+мониторинга ElasticSearch будем использовать следующий 
+- Установим `prometheus-operator` в namespace `observability`
+~~~bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm upgrade --install prometheus-operator prometheus-community/kube-prometheus-stack -n observability \
+ -f prometheus.values.yaml
+~~~
 
-Пойдем другим путем и воспользуемся фильтром `Modify, который позволит удалить из логов "лишние" ключи:
+- Установим упомянутый выше `exporter`:
+~~~bash
+helm upgrade --install elasticsearch-exporter prometheus-community/prometheus-elasticsearch-exporter \
+  --set es.uri=http://elasticsearch:9200 \
+  --set serviceMonitor.enabled=true \
+  --namespace=observability
+~~~
+
+Проверяем:
+- http://prometheus.51.250.37.134.nip.io
+![img_2.png](img_2.png)
+
+- http://grafana.51.250.37.134.nip.io
+![img_4.png](img_4.png)
+
+Импортируем в Grafana один из популярных [Dashboard c ID: 4358](https://grafana.com/grafana/dashboards/4358) exporter, содержащий визуализацию основных собираемых метрик:
+![img_3.png](img_3.png)
+
+
+Проверим, что метрики действительно собираются корректно. Сделаем drain одной из нод infra-pool:
+~~~bash
+yc managed-kubernetes node-group list-nodes infra-pool
+~~~
+~~~
++--------------------------------+---------------------------+--------------------------------+-------------+--------+
+|         CLOUD INSTANCE         |      KUBERNETES NODE      |           RESOURCES            |    DISK     | STATUS |
++--------------------------------+---------------------------+--------------------------------+-------------+--------+
+| ef3gb6f619l9dhl2hi5q           | cl1a1v5ptf3j9fo85vat-aven | 2 100% core(s), 8.0 GB of      | 30.0 GB hdd | READY  |
+| RUNNING_ACTUAL                 |                           | memory                         |             |        |
+| ef312vreo7kqp9nlgsl1           | cl1a1v5ptf3j9fo85vat-ehif | 2 100% core(s), 8.0 GB of      | 30.0 GB hdd | READY  |
+| RUNNING_ACTUAL                 |                           | memory                         |             |        |
+| ef3abftla4t8jtekqu6o           | cl1a1v5ptf3j9fo85vat-upaz | 2 100% core(s), 8.0 GB of      | 30.0 GB hdd | READY  |
+| RUNNING_ACTUAL                 |                           | memory                         |             |        |
++--------------------------------+---------------------------+--------------------------------+-------------+--------+
+~~~
+~~~bash
+kubectl drain cl1a1v5ptf3j9fo85vat-aven --ignore-daemonsets --delete-emptydir-data
+~~~
+Статус Cluster Health остался зеленым, но количество нод в кластере уменьшилось до двух штук. При этом, кластер сохранил полную
+работоспособность.
+![img_5.png](img_5.png)
+
+Попробуем сделать drain второй ноды из infra-pool, и увидим что не [PDB](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+дает этого сделать.
+>https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+~~~bash
+kubectl drain cl1a1v5ptf3j9fo85vat-ehif --ignore-daemonsets --delete-emptydir-data
+~~~
+
+Вернем ноды в исходное состояние:
+~~~bash
+kubectl uncordon cl1a1v5ptf3j9fo85vat-aven
+kubectl uncordon cl1a1v5ptf3j9fo85vat-ehif
+~~~
+
+После экспериментов у нас не рабоает один из экземпляров core-dns
+~~~bash
+kubectl describe pod/coredns-d64bfb745-wcrk4 -n kube-system
+~~~
+~~~
+...
+Events:
+Type     Reason             Age                 From                Message
+  ----     ------             ----                ----                -------
+Normal   NotTriggerScaleUp  2m58s               cluster-autoscaler  pod didn't trigger scale-up:
+Warning  FailedScheduling   59s (x3 over 3m8s)  default-scheduler   0/4 nodes are available: 1 node(s) didn't match pod topology spread constraints, 3 node(s) had taint {node-role: infra}, that the pod didn't tolerate.
+~~~
+
+Лечим:
+~~~bash
+kubectl taint nodes cl1a1v5ptf3j9fo85vat-aven node-role=infra:NoSchedule-
+kubectl taint nodes cl1a1v5ptf3j9fo85vat-ehif node-role=infra:NoSchedule-
+kubectl taint nodes  cl1a1v5ptf3j9fo85vat-upaz node-role=infra:NoSchedule-
+sleep 15
+kubectl taint nodes cl1a1v5ptf3j9fo85vat-aven node-role=infra:NoSchedule
+kubectl taint nodes cl1a1v5ptf3j9fo85vat-ehif node-role=infra:NoSchedule
+kubectl taint nodes  cl1a1v5ptf3j9fo85vat-upaz node-role=infra:NoSchedule
+~~~
+
+### 7. EFK | nginx ingress
+
+Попробуем найти в Kibana логи `nginx-ingress` (например, полнотекстовым поиском по слову `nginx` ) и обнаружим, что они отсутствуют.
+Приводим `nginx.values.yaml` к виду:
 ~~~yaml
-config:
-  filter: |
-    [ FILTER ]
-        Name modify
-        Match *
-        Remove time
-        Remove @timestamp
+...
+  config:
+    log-format-escape-json: "true"
+    log-format-upstream: '{"time_local": "$time_local", "proxy_protocol_addr": "$proxy_protocol_addr",
+        "remote_addr": "$remote_addr", "proxy_add_x_forwarded_for": "$proxy_add_x_forwarded_for", 
+        "remote_user": "$remote_user", "request" : "$request", "body_bytes_sent": "$body_bytes_sent", 
+        "http_referer":  "$http_referer", "http_user_agent": "$http_user_agent", 
+        "proxy_upstream_name": "$proxy_upstream_name", "upstream_addr": "$upstream_addr",  
+        "upstream_response_length": "$upstream_response_length", "upstream_response_time": "$upstream_response_time", 
+        "upstream_status": "$upstream_status"}'
 ...
 ~~~
-</details>
 
+Перезапускаем передеплой `nginx-ingress-release`, проверяем:
+![img_6.png](img_6.png)
+![img_7.png](img_7.png)
+
+
+Теперь, когда мы научились собирать логи с nginx-ingress и смогли их структурировать, можно опробовать возможности Kibana для визуализации. Перейдем на вкладку Visualize и создадим новую визуализацию с типом
+`TSVB`.
+Для этого нам понадобится применить следующий KQL фильтр:
+~~~kql
+kubernetes.labels.app_kubernetes_io/name: ingress-nginx
+~~~
+
+Cоздадим визуализации для отображения запросов к nginx-ingress со статусами:
+- 200-299
+- 300-399
+- 400-499
+- 500+
+
+![img_8.png](img_8.png)
+
+
+Экспортируем получившиеся визуализации и Dashboard в файл [export.ndjson](export.ndjson)
+![img_9.png](img_9.png)
+
+~~~
 # **Полезное:**
 
 - https://registry.tfpla.net/providers/yandex-cloud/yandex/latest/docs/resources/kubernetes_node_group#node_taints
@@ -432,7 +568,6 @@ config:
 - https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraints-for-pods
 - https://blog.kubecost.com/blog/kubernetes-taints/
 - https://docs.comcloud.xyz/
-- https://docs.fluentbit.io/manual/installation/kubernetes
 
 ~~~bash
 yc managed-kubernetes cluster stop k8s-4otus
