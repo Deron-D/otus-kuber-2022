@@ -556,11 +556,83 @@ Cоздадим визуализации для отображения запр�
 
 ![img_8.png](img_8.png)
 
-
 Экспортируем получившиеся визуализации и Dashboard в файл [export.ndjson](export.ndjson)
 ![img_9.png](img_9.png)
 
+
+### 8. Loki
+
+Задачи:
+ - Установить Loki в namespace `observability`, используя любой из [доступных способов](https://grafana.com/docs/loki/latest/installation/). Должны быть установлены непосредственно `Loki` и `Promtail`
+ - Модифицировать конфигурацию `prometheus-operator` таким образом, чтобы `datasource` Loki создавался сразу после установки оператора
+ - Итоговый файл `prometheus-operator.values.yaml` выложить в репозиторий в директорию `kubernetes-logging`
+
+- Установка
+~~~bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update grafana
+helm upgrade --install loki grafana/loki-distributed -n observability -f loki.values.yaml
+helm upgrade --install promtail grafana/promtail -n observability -f promtail.values.yaml
 ~~~
+
+
+- Loki | Datasource
+![img_10.png](img_10.png)
+
+- Loki | ingress-nginx
+![img_11.png](img_11.png)
+
+Loki, аналогично ElasticSearch умеет разбирать JSON лог по ключам, но, к сожалению, фильтрация по данным ключам на текущий момент не работает:
+![img_12.png](img_12.png)
+
+- Loki | Визуализация
+Создадим Dashboard, на котором одновременно выведем метрики ingress-nginx и его логи:
+  
+  - Убедимся, что вместе с `ingress-nginx` устанавливается 'serviceMonitor', и `Prometheus` "видит" его:
+  ![img_13.png](img_13.png)
+
+  - Создадим в `Grafana` новый Dashboard. 
+    - Добавим для него следующие [переменные](https://github.com/kubernetes/ingress-nginx/blob/master/deploy/grafana/dashboards/nginx.json) 
+    (взяты из [официального Dashboard](https://github.com/kubernetes/ingress-nginx/blob/master/deploy/grafana/dashboards/nginx.json) nginx-ingress):
+    - Создадим новую панель и добавьте туда следующую [query](взято из официального Dashboard для nginx-ingress)
+    ~~~promql
+    sum(rate(nginx_ingress_controller_requests{controller_pod=~"$controller",controller_class=~"$controller_class",namespace=~"$namespace",ingress=~"$ingress",status!~"[4-5].*"}[1m])) by (ingress) / sum(rate(nginx_ingress_controller_requests{controller_pod=~"$controller",controller_class=~"$controller_class",namespace=~"$namespace",ingress=~"$ingress"}[1m])) by (ingress)
+    ~~~
+    - Аналогичным образом добавим панель, позволяющую оценить количество запросов к nginx-ingress в секунду
+    - Добавим панель с логами и укажем для нее следующие настройки Query:
+
+![img_15.png](img_15.png)
+
+Итоговый Dashboard:
+
+![img_16.png](img_16.png)
+
+Выгрузим из Grafana JSON с финальным Dashboard и поместим его в [nginx-ingress.json](nginx-ingress.json)
+
+### 9. Host logging | Задание со ⭐
+На текущий момент мы лишены возможности централизованного просмотра логов с виртуальных машин, на которых запущен Kubernetes.
+Модернизируем конфигурацию `nodes-logging/fluent-bit` таким образом, чтобы данные логи отображались в ElasticSearch.
+~~~
+config:
+  inputs: |
+    [INPUT]
+        Name systemd
+        Tag node.*
+        Path /journal
+        Read_From_Tail On
+...
+~~~
+
+Деплоим
+~~~bash
+helm upgrade --install fluent-bit fluent/fluent-bit \
+--namespace observability -f nodes-logging/fluentbit.values.yaml
+~~~
+
+Проверяем:
+![img_17.png](img_17.png)
+
+
 # **Полезное:**
 
 - https://registry.tfpla.net/providers/yandex-cloud/yandex/latest/docs/resources/kubernetes_node_group#node_taints
@@ -568,6 +640,8 @@ Cоздадим визуализации для отображения запр�
 - https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraints-for-pods
 - https://blog.kubecost.com/blog/kubernetes-taints/
 - https://docs.comcloud.xyz/
+
+
 
 ~~~bash
 yc managed-kubernetes cluster stop k8s-4otus

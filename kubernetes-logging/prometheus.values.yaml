@@ -28,9 +28,9 @@ grafana:
     hosts:
       - grafana.51.250.37.134.nip.io
   adminPassword: admin
-#  additionalDataSources:
-#    - name: Loki
-#      access: proxy
-#      type: loki
-#      url: http://loki:3100
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki-loki-distributed-query-frontend.observability:3100
 
