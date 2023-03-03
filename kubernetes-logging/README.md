@@ -632,6 +632,41 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 Проверяем:
 ![img_17.png](img_17.png)
 
+### 10. Audit logging | Задание со ⭐
+Еще один важный тип логов, который рекомендуется собирать и хранить логи [аудита](https://kubernetes.io/docs/tasks/debug-application-cluster/audit/) 
+Получить их в GKE (Yandex) сложнее, чем в self-hosted кластерах из-за того, что доступ к master нодам, на которых запущен kube-apiserver, отсутствует.
+Поэтому нужно развернуть self-hosted кластер и настроить сбор аудит логов.
+> https://kubernetes.io/docs/tasks/debug-application-cluster/audit/
+
+Создадим файл с Audit policy `audit-policy.yaml`
+~~~yaml
+# Log all requests at the Metadata level.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+  - level: Metadata
+~~~
+
+Запустим кластер с базе kind c дополнительными параметрами для `kube-apiserver`
+~~~
+--audit-policy-file=/etc/kubernetes/audit-policy.yaml \
+--audit-log-path=/var/log/kubernetes/audit/audit.log
+~~~
+~~~bash
+cd audit-logging/
+kind create cluster --config kind-config.yaml
+~~~
+
+Проверим формирование логов аудита
+~~~bash
+docker exec kind-control-plane cat /var/log/kubernetes/kube-apiserver-audit.log | head -2
+~~~
+~~~json
+{"kind":"Event","apiVersion":"audit.k8s.io/v1","level":"Metadata","auditID":"8a263a99-cd22-4647-aaee-4f554138f234","stage":"RequestReceived","requestURI":"/apis/flowcontrol.apiserver.k8s.io/v1beta2/flowschemas?limit=500\u0026resourceVersion=0","verb":"list","user":{"username":"system:apiserver","uid":"337a90c2-2a6a-4d4d-867d-2455cea4b2ed","groups":["system:masters"]},"sourceIPs":["::1"],"userAgent":"kube-apiserver/v1.24.0 (linux/amd64) kubernetes/4ce5a89","objectRef":{"resource":"flowschemas","apiGroup":"flowcontrol.apiserver.k8s.io","apiVersion":"v1beta2"},"requestReceivedTimestamp":"2023-03-03T10:33:04.606133Z","stageTimestamp":"2023-03-03T10:33:04.606133Z"}
+~~~
+~~~json
+{"kind":"Event","apiVersion":"audit.k8s.io/v1","level":"Metadata","auditID":"6e876c1a-fd71-49ac-a25b-d915184ce1af","stage":"RequestReceived","requestURI":"/api/v1/services?limit=500\u0026resourceVersion=0","verb":"list","user":{"username":"system:node:kind-control-plane","groups":["system:nodes","system:authenticated"]},"sourceIPs":["fc00:f853:ccd:e793::3"],"userAgent":"kubelet/v1.24.0 (linux/amd64) kubernetes/4ce5a89","objectRef":{"resource":"services","apiVersion":"v1"},"requestReceivedTimestamp":"2023-03-03T10:33:04.607870Z","stageTimestamp":"2023-03-03T10:33:04.607870Z"}
+~~~
 
 # **Полезное:**
 
@@ -640,7 +675,7 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 - https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#spread-constraints-for-pods
 - https://blog.kubecost.com/blog/kubernetes-taints/
 - https://docs.comcloud.xyz/
-
+- https://kind.sigs.k8s.io/docs/user/auditing/
 
 
 ~~~bash
