@@ -287,7 +287,7 @@ helm upgrade --install kibana bitnami/kibana --namespace observability \
 ~~~
 
 Попробуем создать `index pattern` , и увидим, что в ElasticSearch пока что не обнаружено никаких данных:
-![img.png](img.png))
+![img.png](png/img.png))
 
 Посмотрим в логи решения, которое отвечает за отправку логов (Fluent Bit) и увидим следующие строки:
 ~~~bash
@@ -370,7 +370,7 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 ~~~
 
 Попробуем повторно создать 'index pattern' . В этот раз ситуация изменилась, и какие-то индексы в ElasticSearch уже есть:
-![img_1.png](img_1.png)
+![img_1.png](png/img_1.png)
 
 После установки можно заметить, что в ElasticSearch не попадают логи нашего приложения, т.к. `fluentbit` не продеплоился на все ноды.
 Исключаем секцию из `fluentbit.values.yaml`
@@ -449,13 +449,13 @@ helm upgrade --install elasticsearch-exporter prometheus-community/prometheus-el
 
 Проверяем:
 - http://prometheus.51.250.37.134.nip.io
-![img_2.png](img_2.png)
+![img_2.png](png/img_2.png)
 
 - http://grafana.51.250.37.134.nip.io
-![img_4.png](img_4.png)
+![img_4.png](png/img_4.png)
 
 Импортируем в Grafana один из популярных [Dashboard c ID: 4358](https://grafana.com/grafana/dashboards/4358) exporter, содержащий визуализацию основных собираемых метрик:
-![img_3.png](img_3.png)
+![img_3.png](png/img_3.png)
 
 
 Проверим, что метрики действительно собираются корректно. Сделаем drain одной из нод infra-pool:
@@ -479,7 +479,7 @@ kubectl drain cl1a1v5ptf3j9fo85vat-aven --ignore-daemonsets --delete-emptydir-da
 ~~~
 Статус Cluster Health остался зеленым, но количество нод в кластере уменьшилось до двух штук. При этом, кластер сохранил полную
 работоспособность.
-![img_5.png](img_5.png)
+![img_5.png](png/img_5.png)
 
 Попробуем сделать drain второй ноды из infra-pool, и увидим что не [PDB](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
 дает этого сделать.
@@ -537,8 +537,8 @@ kubectl taint nodes  cl1a1v5ptf3j9fo85vat-upaz node-role=infra:NoSchedule
 ~~~
 
 Перезапускаем передеплой `nginx-ingress-release`, проверяем:
-![img_6.png](img_6.png)
-![img_7.png](img_7.png)
+![img_6.png](png/img_6.png)
+![img_7.png](png/img_7.png)
 
 
 Теперь, когда мы научились собирать логи с nginx-ingress и смогли их структурировать, можно опробовать возможности Kibana для визуализации. Перейдем на вкладку Visualize и создадим новую визуализацию с типом
@@ -554,10 +554,10 @@ Cоздадим визуализации для отображения запр�
 - 400-499
 - 500+
 
-![img_8.png](img_8.png)
+![img_8.png](png/img_8.png)
 
 Экспортируем получившиеся визуализации и Dashboard в файл [export.ndjson](export.ndjson)
-![img_9.png](img_9.png)
+![img_9.png](png/img_9.png)
 
 
 ### 8. Loki
@@ -577,19 +577,19 @@ helm upgrade --install promtail grafana/promtail -n observability -f promtail.va
 
 
 - Loki | Datasource
-![img_10.png](img_10.png)
+![img_10.png](png/img_10.png)
 
 - Loki | ingress-nginx
-![img_11.png](img_11.png)
+![img_11.png](png/img_11.png)
 
 Loki, аналогично ElasticSearch умеет разбирать JSON лог по ключам, но, к сожалению, фильтрация по данным ключам на текущий момент не работает:
-![img_12.png](img_12.png)
+![img_12.png](png/img_12.png)
 
 - Loki | Визуализация
 Создадим Dashboard, на котором одновременно выведем метрики ingress-nginx и его логи:
   
   - Убедимся, что вместе с `ingress-nginx` устанавливается 'serviceMonitor', и `Prometheus` "видит" его:
-  ![img_13.png](img_13.png)
+  ![img_13.png](png/img_13.png)
 
   - Создадим в `Grafana` новый Dashboard. 
     - Добавим для него следующие [переменные](https://github.com/kubernetes/ingress-nginx/blob/master/deploy/grafana/dashboards/nginx.json) 
@@ -601,11 +601,11 @@ Loki, аналогично ElasticSearch умеет разбирать JSON ло
     - Аналогичным образом добавим панель, позволяющую оценить количество запросов к nginx-ingress в секунду
     - Добавим панель с логами и укажем для нее следующие настройки Query:
 
-![img_15.png](img_15.png)
+![img_15.png](png/img_15.png)
 
 Итоговый Dashboard:
 
-![img_16.png](img_16.png)
+![img_16.png](png/img_16.png)
 
 Выгрузим из Grafana JSON с финальным Dashboard и поместим его в [nginx-ingress.json](nginx-ingress.json)
 
@@ -630,7 +630,7 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 ~~~
 
 Проверяем:
-![img_17.png](img_17.png)
+![img_17.png](png/img_17.png)
 
 ### 10. Audit logging | Задание со ⭐
 Еще один важный тип логов, который рекомендуется собирать и хранить логи [аудита](https://kubernetes.io/docs/tasks/debug-application-cluster/audit/) 
