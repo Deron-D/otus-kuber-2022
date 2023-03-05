@@ -1,0 +1,13 @@
+#loki:
+#  server:
+#    http_listen_address: loki
+#    http_listen_port: 3100
+#
+#  nodeSelector: &nodeSelector
+#    yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+#
+#  tolerations: &tolerations
+#    - key: node-role
+#      operator: Equal
+#      value: infra
+#      effect: NoSchedule

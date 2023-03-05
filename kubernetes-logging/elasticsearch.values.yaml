@@ -1,0 +1,48 @@
+master:
+  replicaCount: 3
+  nodeSelector: &nodeSelector
+    yandex.cloud/node-group-id: cat923baqsdrsiilosoh
+
+  tolerations: &tolerations
+    - key: node-role
+      operator: Equal
+      value: infra
+      effect: NoSchedule
+
+data:
+  replicaCount: 3
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
+
+coordinating:
+  replicaCount: 3
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
+
+ingest:
+  replicaCount: 3
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
+
+metrics:
+  nodeSelector:
+    *nodeSelector
+  tolerations:
+    *tolerations
+
+
+#  affinity:
+#    nodeAffinity:
+#      requiredDuringSchedulingIgnoredDuringExecution:
+#        nodeSelectorTerms:
+#          - matchExpressions:
+#              - key: kubernetes.io/os
+#                operator: In
+#                values:
+#                  - linux

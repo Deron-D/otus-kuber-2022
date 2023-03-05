@@ -1,0 +1,28 @@
+config:
+  outputs: |
+    [OUTPUT]
+        Name es
+        Match kube.*
+        Host elasticsearch
+        Port  9200
+        Logstash_Format On
+        Retry_Limit False
+        Suppress_Type_Name On
+        Replace_Dots    On
+
+    [OUTPUT]
+        Name es
+        Match host.*
+        Host elasticsearch
+        Port  9200
+        Logstash_Format On
+        Logstash_Prefix node
+        Retry_Limit False
+        Suppress_Type_Name On
+        Replace_Dots    On
+
+tolerations: &tolerations
+  - key: node-role
+    operator: Equal
+    value: infra
+    effect: NoSchedule

@@ -1,0 +1,6 @@
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  path: /
+  hostname: kibana.51.250.37.134.nip.io
+
