@@ -59,11 +59,16 @@ resource "yandex_kubernetes_node_group" "default-pool" {
     }
   }
 
+
   scale_policy {
-    fixed_scale {
-      size = var.count_of_workers
+    auto_scale {
+      initial = var.auto_scale_initial
+      min     = var.auto_scale_min
+      max     = var.auto_scale_max
+
     }
   }
+
 
   provisioner "local-exec" {
     command = "yc managed-kubernetes cluster get-credentials $CLUSTER_NAME --external --force --folder-id $FOLDER_ID"

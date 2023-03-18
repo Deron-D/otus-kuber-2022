@@ -357,9 +357,42 @@ build:
 
 ![img_2.png](img_2.png)
 
+### 5. GitOps
 
+Подготовка
+> https://github.com/fluxcd/helm-operator/tree/master/chart/helm-operator
 
+- Установим CRD, добавляющую в кластер новый ресурс - HelmRelease:
+~~~bash
+kubectl apply -f https://raw.githubusercontent.com/fluxcd/helm-operator/1.4.4/deploy/crds.yaml
+~~~
 
+Добавим официальный репозиторий Flux
+~~~bash
+helm repo add fluxcd https://charts.fluxcd.io
+~~~
+
+Произведем установку Flux в кластер, в namespace flux
+~~~bash
+kubectl create namespace flux
+helm upgrade --install flux fluxcd/flux -f flux.values.yaml --namespace flux
+~~~
+
+~~~
+NOTES:
+Get the Git deploy key by either (a) running
+
+  kubectl -n flux logs deployment/flux | grep identity.pub | cut -d '"' -f2
+
+or by (b) installing fluxctl through
+https://fluxcd.io/legacy/flux/references/fluxctl/#installing-fluxctl
+and running:
+
+  fluxctl identity --k8s-fwd-ns flux
+
+---
+**Flux v1 is deprecated, please upgrade to v2 as soon as possible!**
+~~~
 # **Полезное:**
 
 - https://cloud.yandex.ru/docs/security/domains/kubernetes

@@ -29,9 +29,17 @@ variable "region_id" {
   description = "ID of the availability zone where the network load balancer resides"
   default     = "ru-central1"
 }
-variable "count_of_instances" {
-  description = "Count of instances"
-  default     = 2
+variable "auto_scale_initial" {
+  description = "auto_scale_initial"
+  default     = 1
+}
+variable "auto_scale_min" {
+  description = "auto_scale_min"
+  default     = 1
+}
+variable "auto_scale_max" {
+  description = "auto_scale_max"
+  default     = 4
 }
 variable "enable_provision" {
   description = "Enable provision"
