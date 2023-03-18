@@ -393,6 +393,89 @@ and running:
 ---
 **Flux v1 is deprecated, please upgrade to v2 as soon as possible!**
 ~~~
+
+Наконец, добавим в свой профиль GitLab публичный ssh-ключ, при помощи которого flux получит доступ к нашему git-репозиторию.
+~~~bash
+kubectl -n flux logs deployment/flux | grep identity.pub | cut -d '"' -f2
+~~~
+
+Пришло время проверить корректность работы Flux. Как мы уже знаем, Flux умеет автоматически синхронизировать состояние кластера и
+репозитория. Это касается не только сущностей HelmRelease , которыми мы будем оперировать для развертывания приложения, но и обыкновенных манифестов.
+Поместим манифест, описывающий namespace `microservices-demo` в директорию `deploy/namespaces` и сделаем push в GitLab:
+~~~bash
+kubectl get ns | grep microservices-demo  
+~~~
+~~~
+microservices-demo   Active   24s
+~~~
+~~~bash
+kubectl logs flux-7875d5c549-fjpxj -n flux | grep microservices-demo 
+~~~
+~~~
+...
+ts=2023-03-18T21:00:36.291919662Z caller=sync.go:608 method=Sync cmd="kubectl apply -f -" took=1.352943488s err=null output="namespace/microservices-demo created"
+...
+~~~
+
+Мы подобрались к сущностям, которыми управляет helm-operator - `HelmRelease`.
+Для описания сущностей такого вида создадим отдельную директорию deploy/releases и поместим туда файл `frontend.yaml` с описанием конфигурации релиза.
+~~~yaml
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: frontend
+  namespace: microservices-demo
+  annotations:
+    fluxcd.io/ignore: "false"
+    # fluxcd.io/automated: "true" Аннотация разрешает автоматическое обновление релиза в  Kubernetes кластере
+    # в случае изменения версии Docker образа в Registry
+    fluxcd.io/automated: "true"
+    # Указываем Flux следить за обновлениями конкретных Docker образов
+    # в Registry.
+    # Новыми считаются только образы, имеющие версию выше текущей и
+    # отвечающие маске семантического версионирования ~0.0 (например,
+    # 0.0.1, 0.0.72, но не 1.0.0)
+    flux.weave.works/tag.chart-image: semver:~v0.0
+spec:
+  releaseName: frontend
+  helmVersion: v3
+  # Helm chart, используемый для развертывания релиза. В нашем случае
+  #указываем git-репозиторий, и директорию с чартом внутри него
+  chart:
+    git: git@gitlab.com:dpnev/microservices-demo.git
+    ref: main
+    path: deploy/charts/frontend
+  # Переопределяем переменные Helm chart. В дальнейшем Flux может сам
+  # переписывать эти значения и делать commit в git-репозиторий (например,
+  # изменять тег Docker образа при его обновлении в Registry)
+  values:
+    image:
+      repository: cr.yandex/crpn6n5ssda7s8tdsdf5/frontend
+      tag: v0.0.1
+~~~
+
+### HelmRelease | Проверка
+
+Протегируем образ `frontend`, для начального деплоя
+~~~bash
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:v0.0.1
+docker push  cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:v0.0.1
+~~~
+
+Убедимся что HelmRelease для микросервиса frontend появился в
+кластере:
+~~~bash
+kubectl get helmrelease -n microservices-demo
+~~~
+~~~
+NAME       RELEASE   PHASE   RELEASESTATUS   MESSAGE   AGE
+frontend                                               3s
+~~~
+
+~~~bash
+helm list -n microservices-demo
+~~~
+
 # **Полезное:**
 
 - https://cloud.yandex.ru/docs/security/domains/kubernetes

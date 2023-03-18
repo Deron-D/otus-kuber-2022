@@ -1,5 +1,6 @@
 git:
   url: git@gitlab.com:dpnev/microservices-demo.git
+  branch: "main"
   path: deploy
   ciSkip: true
   pollInterval: 1m
