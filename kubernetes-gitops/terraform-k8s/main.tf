@@ -61,7 +61,7 @@ resource "yandex_kubernetes_node_group" "default-pool" {
 
   scale_policy {
     fixed_scale {
-      size = 1
+      size = var.count_of_workers
     }
   }
 
