@@ -462,8 +462,56 @@ docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d cr.yandex/crpn6n5ssd
 docker push  cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:v0.0.1
 ~~~
 
-Убедимся что HelmRelease для микросервиса frontend появился в
-кластере:
+> https://cloud.yandex.ru/docs/container-registry/operations/authentication#k8s-secret
+
+#### **Создадим секрет для скачивания images из `cr.yandex`**
+
+- Удалим секцию в файле `~/.docker/config.json` 
+~~~
+"credHelpers": {
+"container-registry.cloud.yandex.net": "yc",
+"cr.cloud.yandex.net": "yc",
+"cr.yandex": "yc"
+}
+~~~
+
+- Выполним команду аутентификации:
+~~~bash
+cat ~/.yc_keys/key.json | docker login \
+  --username json_key \
+  --password-stdin \
+  cr.yandex
+~~~
+
+- Убедимся, что полученный ключ имеет нужный формат. Для этого откройте конфигурационный файл Docker:
+~~~bash
+cat $HOME/.docker/config.json
+~~~
+~~~
+{
+        "auths": {
+                "cr.yandex": {
+                        "auth": "anN..."
+                }
+        }
+}%   
+~~~
+
+- Создадим секрет в нашем кластере Kubernetes:
+~~~bash
+kubectl create secret generic cr-yandex-pull-secret \
+  --from-file=.dockerconfigjson=$HOME/.docker/config.json \
+  --type=kubernetes.io/dockerconfigjson
+~~~
+
+Используем секрет для создания подов или контроллеров Deployment:
+~~~yaml
+
+~~~
+
+
+
+Убедимся что HelmRelease для микросервиса frontend появился в кластере:
 ~~~bash
 kubectl get helmrelease -n microservices-demo
 ~~~
@@ -474,6 +522,19 @@ frontend                                               3s
 
 ~~~bash
 helm list -n microservices-demo
+~~~
+
+
+
+Ставим опять Ingress
+~~~bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update ingress-nginx
+~~~
+~~~bash
+kubectl create ns nginx-ingress
+helm upgrade --install nginx-ingress-release ingress-nginx/ingress-nginx \
+ --namespace=nginx-ingress --version="4.4.2"
 ~~~
 
 # **Полезное:**
