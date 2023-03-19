@@ -564,6 +564,26 @@ NAME            NAMESPACE               REVISION        UPDATED                 
 frontend        microservices-demo      1               2023-03-19 15:58:09.62715469 +0000 UTC  deployed        frontend-0.21.0 1.16.0   
 ~~~
 
+### Обновление образа
+
+Т.к. у нас закончилось время на раннерах GitLab вместо сборки нам остается только тегирование образа до версии v0.0.2
+~~~bash
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d registry.gitlab.com/dpnev/microservices-demo:v0.0.3
+docker push registry.gitlab.com/dpnev/microservices-demo:v0.0.2
+~~~
+
+Дождемся автоматического обновления релиза в Kubernetes кластере
+~~~bash
+helm history frontend -n microservices-demo                                                                    
+~~~
+~~~
+REVISION        UPDATED                         STATUS          CHART           APP VERSION     DESCRIPTION     
+1               Sun Mar 19 15:58:09 2023        superseded      frontend-0.21.0 1.16.0          Install complete
+2               Sun Mar 19 17:37:43 2023        deployed        frontend-0.21.0 1.16.0          Upgrade complete
+~~~
+
+Проверим, изменилось ли что-либо в git-репозитории (в частности, в файле deploy/releases/frontend.yaml )
+![img_3.png](img_3.png)
 
 # **Полезное:**
 
