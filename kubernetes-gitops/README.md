@@ -362,22 +362,22 @@ build:
 Подготовка
 > https://github.com/fluxcd/helm-operator/tree/master/chart/helm-operator
 
+- Добавим официальный репозиторий Flux
+~~~bash
+helm repo add fluxcd https://charts.fluxcd.io
+helm repo update fluxcd
+~~~
+
 - Установим CRD, добавляющую в кластер новый ресурс - HelmRelease:
 ~~~bash
 kubectl apply -f https://raw.githubusercontent.com/fluxcd/helm-operator/1.4.4/deploy/crds.yaml
 ~~~
 
-Добавим официальный репозиторий Flux
-~~~bash
-helm repo add fluxcd https://charts.fluxcd.io
-~~~
-
-Произведем установку Flux в кластер, в namespace flux
+- Произведем установку Flux в кластер, в namespace flux
 ~~~bash
 kubectl create namespace flux
 helm upgrade --install flux fluxcd/flux -f flux.values.yaml --namespace flux
 ~~~
-
 ~~~
 NOTES:
 Get the Git deploy key by either (a) running
@@ -394,9 +394,70 @@ and running:
 **Flux v1 is deprecated, please upgrade to v2 as soon as possible!**
 ~~~
 
-Наконец, добавим в свой профиль GitLab публичный ssh-ключ, при помощи которого flux получит доступ к нашему git-репозиторию.
+- Наконец, добавим в свой профиль GitLab публичный ssh-ключ, при помощи которого flux получит доступ к нашему git-репозиторию.
 ~~~bash
 kubectl -n flux logs deployment/flux | grep identity.pub | cut -d '"' -f2
+~~~
+
+- Установим Helm operator:
+~~~bash
+helm upgrade --install helm-operator fluxcd/helm-operator -f helm-operator.values.yaml --namespace flux
+~~~
+~~~
+Release "helm-operator" does not exist. Installing it now.
+NAME: helm-operator
+LAST DEPLOYED: Sun Mar 19 18:04:06 2023
+NAMESPACE: flux
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+Flux Helm Operator docs https://fluxcd.io/legacy/helm-operator
+
+Example:
+
+AUTH_VALUES=$(cat <<-END
+usePassword: true
+password: "redis_pass"
+usePasswordFile: true
+END
+)
+
+kubectl create secret generic redis-auth --from-literal=values.yaml="$AUTH_VALUES"
+
+`cat <<EOF | kubectl apply -f -
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: redis
+  namespace: default
+spec:
+  releaseName: redis
+  chart:
+    repository: https://kubernetes-charts.storage.googleapis.com
+    name: redis
+    version: 10.5.7
+  valuesFrom:
+  - secretKeyRef:
+      name: redis-auth
+  values:
+    master:
+      persistence:
+        enabled: false
+    volumePermissions:
+      enabled: true
+    metrics:
+      enabled: true
+    cluster:
+      enabled: false
+EOF`
+
+watch kubectl get hr
+~~~
+
+- Установим fluxctl на локальную машину для управления нашим CD инструментом.
+~~~bash
+curl -s https://fluxcd.io/install.sh | sudo bash
 ~~~
 
 Пришло время проверить корректность работы Flux. Как мы уже знаем, Flux умеет автоматически синхронизировать состояние кластера и
@@ -456,77 +517,20 @@ spec:
 
 ### HelmRelease | Проверка
 
-Протегируем образ `frontend`, для начального деплоя
+- Ловим ошибку в логах `helm-operator` про `kind: ServiceMonitor` при деплое из чарта `deploy/charts/frontend` и поэтому ставим дополнительно `prometheus-operator` через  `kubectl apply` из [офф. репозитория](https://github.com/prometheus-operator/kube-prometheus) (Bring`em on!)
 ~~~bash
-docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:v0.0.1
-docker push  cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:v0.0.1
+cd ./kube-prometheus
+# Create the namespace and CRDs, and then wait for them to be available before creating the remaining resources
+# Note that due to some CRD size we are using kubectl server-side apply feature which is generally available since kubernetes 1.22.
+# If you are using previous kubernetes versions this feature may not be available and you would need to use kubectl create instead.
+kubectl apply --server-side -f manifests/setup
+kubectl wait \
+--for condition=Established \
+--all CustomResourceDefinition \
+--namespace=monitoring
+kubectl apply -f manifests/
 ~~~
-
-> https://cloud.yandex.ru/docs/container-registry/operations/authentication#k8s-secret
-
-#### **Создадим секрет для скачивания images из `cr.yandex`**
-
-- Удалим секцию в файле `~/.docker/config.json` 
-~~~
-"credHelpers": {
-"container-registry.cloud.yandex.net": "yc",
-"cr.cloud.yandex.net": "yc",
-"cr.yandex": "yc"
-}
-~~~
-
-- Выполним команду аутентификации:
-~~~bash
-cat ~/.yc_keys/key.json | docker login \
-  --username json_key \
-  --password-stdin \
-  cr.yandex
-~~~
-
-- Убедимся, что полученный ключ имеет нужный формат. Для этого откройте конфигурационный файл Docker:
-~~~bash
-cat $HOME/.docker/config.json
-~~~
-~~~
-{
-        "auths": {
-                "cr.yandex": {
-                        "auth": "anN..."
-                }
-        }
-}%   
-~~~
-
-- Создадим секрет в нашем кластере Kubernetes:
-~~~bash
-kubectl create secret generic cr-yandex-pull-secret \
-  --from-file=.dockerconfigjson=$HOME/.docker/config.json \
-  --type=kubernetes.io/dockerconfigjson
-~~~
-
-Используем секрет для создания подов или контроллеров Deployment:
-~~~yaml
-
-~~~
-
-
-
-Убедимся что HelmRelease для микросервиса frontend появился в кластере:
-~~~bash
-kubectl get helmrelease -n microservices-demo
-~~~
-~~~
-NAME       RELEASE   PHASE   RELEASESTATUS   MESSAGE   AGE
-frontend                                               3s
-~~~
-
-~~~bash
-helm list -n microservices-demo
-~~~
-
-
-
-Ставим опять Ingress
+и ставим так же `Ingress`
 ~~~bash
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update ingress-nginx
@@ -537,12 +541,35 @@ helm upgrade --install nginx-ingress-release ingress-nginx/ingress-nginx \
  --namespace=nginx-ingress --version="4.4.2"
 ~~~
 
+- Инициируем синхронизацию вручную
+~~~bash
+fluxctl --k8s-fwd-ns flux sync
+~~~
+
+Убедимся что HelmRelease для микросервиса frontend появился в кластере:
+~~~bash
+kubectl get helmrelease -n microservices-demo
+~~~
+~~~
+NAME       RELEASE    PHASE       RELEASESTATUS   MESSAGE                                                                       AGE
+frontend   frontend   Succeeded   deployed        Release was successful for Helm release 'frontend' in 'microservices-demo'.   61m
+~~~
+
+~~~bash
+helm list -n microservices-demo
+~~~
+~~~
+helm list -n microservices-demo
+NAME            NAMESPACE               REVISION        UPDATED                                 STATUS          CHART           APP VERSION
+frontend        microservices-demo      1               2023-03-19 15:58:09.62715469 +0000 UTC  deployed        frontend-0.21.0 1.16.0   
+~~~
+
+
 # **Полезное:**
 
 - https://cloud.yandex.ru/docs/security/domains/kubernetes
 - https://istio.io/latest/docs/setup/install/helm/
 
- 
 
 ~~~bash
 yc managed-kubernetes cluster stop k8s-4otus
