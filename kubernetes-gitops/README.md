@@ -117,7 +117,7 @@ helm install istio-base istio/base -n istio-system --version 1.17.1
 helm install istiod istio/istiod -n istio-system --wait --version 1.17.1
 kubectl create namespace istio-ingress
 kubectl label namespace istio-ingress istio-injection=enabled
-helm install istio-ingress istio/gateway -n istio-ingress --wait
+helm install istio-ingress istio/gateway -n istio-ingress --wait --version 1.17.1
 ~~~
 
 Проверяем
@@ -671,8 +671,28 @@ productcatalogservice-66944f6b6-xs2q8   1/1     Running    0          9m41s
 recommendationservice-5d87f6fd-nzdsw    1/1     Running    0          9m34s
 shippingservice-597478d856-vw527        1/1     Running    0          9m34s
 ~~~
-Для `loadgenerator` не получается пройти успешное выполнение init контейнера, который курлит фронт. Нужно разбираться с Istio ingress.
 
+Для `loadgenerator` не получается пройти успешное выполнение init контейнера, т.к. `frontend` отдает `500`.
+Смотрим логи `frontend` 
+~~~
+"error":"could not retrieve cart: rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial tcp: lookup cartservice on 10.96.128.2:53: no such host
+~~~
+
+`cartservice` не задеплоился по каким-то причинам, смотрим лог helm-operator:
+~~~bash
+kubectl logs helm-operator-55769d46b8-wrjln -n flux | grep cartservice | tail -1
+~~~
+~~~
+ts=2023-03-20T20:04:50.936076846Z caller=release.go:85 component=release release=cartservice targetNamespace=microservices-demo resource=microservices-demo:helmrelease/cartservice helmVersion=v3 error="failed to prepare chart for release: no cached repository for helm-manager-1067d9c6027b8c3f27b49e40521d64be96ea412858d8e45064fa44afd3966ddc found. (try 'helm repo update'): open /root/.cache/helm/repository/helm-manager-1067d9c6027b8c3f27b49e40521d64be96ea412858d8e45064fa44afd3966ddc-index.yaml: no such file or directory"
+~~~
+
+Оказывается чарт `redis` сменил свое расположение с "https://kubernetes-charts.storage.googleapis.com/" на "https://charts.helm.sh/stable/" 
+Правим соответственно `deploy/charts/cartservice/Chart.yaml`
+Проверяем
+~~~bash
+kubectl get pods -n microservices-demo
+~~~
+Все сервисы поднялись!!!
 
 ## Canary deployments с Flagger и Istio
 
@@ -780,9 +800,8 @@ NAME               AGE
 frontend-gateway   17m
 ~~~
 
-Для доступа снаружи нам понадобится EXTERNAL-IP сервиса `istio-ingressgateway`:
+Для доступа снаружи нам понадобится EXTERNAL-IP сервиса `istio-ingress`:
 ~~~bash
-kubectl get svc istio-ingressgateway -n istio-system
 kubectl get svc istio-ingress -n istio-ingress 
 ~~~
 
@@ -799,7 +818,8 @@ yc managed-kubernetes cluster stop k8s-4otus
 yc managed-kubernetes cluster start k8s-4otus
 ~~~
 
-### **Полезные команды fluxctl**
+<details>
+    <summary>Полезные команды fluxctl</summary>
 
 - синхронизация вручную
 ~~~bash
@@ -842,4 +862,6 @@ fluxctl policy -w microservices-demo:helmrelease/frontend --tag-all='semver:~0.1
 ~~~bash
 fluxctl release --workload=microservicesdemo:helmrelease/frontend --update-all-images
 ~~~
+</details>
+
 </details>
