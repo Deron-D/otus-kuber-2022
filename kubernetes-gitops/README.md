@@ -530,16 +530,7 @@ kubectl wait \
 --namespace=monitoring
 kubectl apply -f manifests/
 ~~~
-и ставим так же `Ingress`
-~~~bash
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update ingress-nginx
-~~~
-~~~bash
-kubectl create ns nginx-ingress
-helm upgrade --install nginx-ingress-release ingress-nginx/ingress-nginx \
- --namespace=nginx-ingress --version="4.4.2"
-~~~
+
 
 - Инициируем синхронизацию вручную
 ~~~bash
@@ -610,7 +601,10 @@ REVISION        UPDATED                         STATUS          CHART           
 ### Самостоятельное задание
 
 Добавим манифесты HelmRelease для всех микросервисов входящих в состав HipsterShop
-Проверим, что все микросервисы успешно развернулись в Kubernetes кластере:
+
+<details>
+    <summary>Из-за недоступности сборки приходится заморрочиться с tags & registry images</summary>
+
 ~~~bash
 #docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.5
 #docker push registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.5
@@ -654,6 +648,30 @@ docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/shippingservice:41ff6a8d
 docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/shippingservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/shippingservice:v0.0.1
 docker push registry.gitlab.com/dpnev/microservices-demo/shippingservice:v0.0.1
 ~~~
+</details>
+
+Проверим, что все микросервисы успешно развернулись в Kubernetes кластере:
+~~~bash
+kubectl delete ns microservices-demo
+kubectl get pods -n microservices-demo -w
+~~~
+~~~
+NAME                                    READY   STATUS     RESTARTS   AGE
+adservice-65778c4cf6-t8jxl              1/1     Running    0          9m51s
+checkoutservice-7d765687d8-fd967        1/1     Running    0          9m52s
+currencyservice-86d9454dbd-x4vvn        1/1     Running    0          9m44s
+emailservice-8587ccd6bd-p54qh           1/1     Running    0          9m51s
+frontend-844976646c-h8gzn               1/1     Running    0          9m44s
+loadgenerator-57d4cb45b4-dzmj7          0/1     Init:0/1   0          9m43s
+paymentservice-7ffc98fdd8-9blnn         1/1     Running    0          9m35s
+productcatalogservice-66944f6b6-xs2q8   1/1     Running    0          9m41s
+recommendationservice-5d87f6fd-nzdsw    1/1     Running    0          9m34s
+shippingservice-597478d856-vw527        1/1     Running    0          9m34s
+~~~
+Для `loadgenerator` не получается пройти успешное выполнение init контейнера, который курлит фронт. Нужно разбираться с Istio ingress.
+
+
+
 
 
 
@@ -661,7 +679,6 @@ docker push registry.gitlab.com/dpnev/microservices-demo/shippingservice:v0.0.1
 
 - https://cloud.yandex.ru/docs/security/domains/kubernetes
 - https://istio.io/latest/docs/setup/install/helm/
-
 
 ~~~bash
 yc managed-kubernetes cluster stop k8s-4otus
@@ -671,8 +688,33 @@ yc managed-kubernetes cluster stop k8s-4otus
 yc managed-kubernetes cluster start k8s-4otus
 ~~~
 
+## **Полезные команды fluxctl**
+
+- синхронизация вручную
 ~~~bash
 fluxctl --k8s-fwd-ns flux sync
 ~~~
+
+- переменная окружения, указывающая на namespace, в который установлен flux (альтернатива ключу --k8s-fwd-ns <flux installation ns> )
+~~~bash
+export FLUX_FORWARD_NAMESPACE=flux
+~~~
+
+- посмотреть все workloads, которые находятся в зоне видимости flux
+~~~bash
+fluxctl list-workloads -a
+~~~
+ 
+- посмотреть все Docker образы, используемые в кластере (в namespace microservicesdemo)
+~~~bash
+fluxctl list-images -n microservices-demo
+~~~
+
+- выключить/включить автоматизацию управления workload 
+~~~bash
+fluxctl deautomate
+fluxctl automate 
+~~~
+
 
 </details>
