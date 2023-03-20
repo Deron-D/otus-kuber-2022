@@ -115,6 +115,9 @@ helm repo update istio
 kubectl create namespace istio-system
 helm install istio-base istio/base -n istio-system --version 1.17.1
 helm install istiod istio/istiod -n istio-system --wait --version 1.17.1
+kubectl create namespace istio-ingress
+kubectl label namespace istio-ingress istio-injection=enabled
+helm install istio-ingress istio/gateway -n istio-ingress --wait
 ~~~
 
 Проверяем
@@ -671,9 +674,117 @@ shippingservice-597478d856-vw527        1/1     Running    0          9m34s
 Для `loadgenerator` не получается пройти успешное выполнение init контейнера, который курлит фронт. Нужно разбираться с Istio ingress.
 
 
+## Canary deployments с Flagger и Istio
 
+### Flagger. 
+Flagger - оператор Kubernetes, созданный для автоматизации canary deployments.
+Flagger может использовать: Istio, Linkerd, App Mesh или nginx для маршрутизации трафика Prometheus для анализа 
+канареечного релиза
 
+###  Установка Flagger
+~~~bash
+helm repo add flagger https://flagger.app
+helm repo update flagger
+~~~
 
+- Установка CRD для Flagger
+~~~bash
+kubectl apply -f https://raw.githubusercontent.com/weaveworks/flagger/master/artifacts/flagger/crd.yaml
+~~~
+
+- Установка flagger с указанием использовать Istio:
+~~~bash
+helm upgrade --install flagger flagger/flagger \
+--namespace=istio-system \
+--set crd.create=false \
+--set meshProvider=istio \
+--set metricsServer=http://prometheus:9090
+~~~
+
+### Istio | Sidecar Injection
+
+Изменим созданное ранее описание namespace microservices-demo
+Последняя строка указывает на необходимость добавить в каждый pod sidecar контейнер с envoy proxy.
+~~~yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: microservices-demo
+  labels:
+    istio-injection: enabled
+~~~
+~~~
+microservices-demo   Active   5h57m   fluxcd.io/sync-gc-mark=sha256.g7l4ABXyUdLLCK94FOGVhAixrw5ameYDiAjb02w1Q2k,istio-injection=enabled,kubernetes.io/metadata.name=microservices-demo
+~~~
+
+После синхронизации проверку можно выполнить командой
+~~~bash
+kubectl get ns microservices-demo --show-labels
+~~~
+
+Самый простой способ добавить sidecar контейнер в уже запущенные pod - удалить их:
+~~~bash
+kubectl delete pods --all -n microservices-demo
+~~~
+
+Или сразу весь namespace, у нас же GitOps :)
+~~~bash
+kubectl delete ns microservices-demo
+~~~
+
+После этого можно проверить, что контейнер с названием `istioproxy` появился внутри каждого pod:
+~~~bash
+kubectl describe pod -l app=frontend -n microservices-demo
+~~~
+~~~
+...
+  istio-proxy:
+    Container ID:  containerd://537ee0e2423b31feee1994903c2a6b93a1cafa790a2ed816717c79ee6cbfb6db
+    Image:         docker.io/istio/proxyv2:1.17.1
+    Image ID:      docker.io/istio/proxyv2@sha256:2152aea5fbe2de20f08f3e0412ad7a4cd54a492240ff40974261ee4bdb43871d
+    Port:          15090/TCP
+    Host Port:     0/TCP
+    Args:
+      proxy
+      sidecar
+      --domain
+      $(POD_NAMESPACE).svc.cluster.local
+      --proxyLogLevel=warning
+      --proxyComponentLogLevel=misc:error
+      --log_output_level=default:info
+      --concurrency
+      2
+    State:          Running
+...
+~~~
+
+### Доступ к frontend. Istio | VirtualService. Istio | Gateway
+
+> https://istio.io/docs/concepts/traffic-management/#virtual-services
+> https://istio.io/docs/concepts/traffic-management/#gateways
+ 
+На текущий момент у нас отсутствует ingress и мы не можем получить доступ к `frontend` снаружи кластера.
+В то же время `Istio` в качестве альтернативы классическому `ingress` предлагает свой набор абстракций.
+Чтобы настроить маршрутизацию трафика к приложению с использованием `Istio`, нам необходимо добавить ресурсы
+`VirtualService` и `Gateway`
+Создадим директорию `deploy/istio` и поместим в нее следующие манифесты:
+- [frontend-vs.yaml](microservices-demo/deploy/istio/frontend-vs.yaml)
+- [frontend-gw.yaml](microservices-demo/deploy/istio/frontend-gw.yaml)
+
+Созданный Gateway можно увидеть следующим образом:
+~~~bash
+kubectl get gateway -n microservices-demo
+~~~
+~~~
+NAME               AGE
+frontend-gateway   17m
+~~~
+
+Для доступа снаружи нам понадобится EXTERNAL-IP сервиса `istio-ingressgateway`:
+~~~bash
+kubectl get svc istio-ingressgateway -n istio-system
+kubectl get svc istio-ingress -n istio-ingress 
+~~~
 
 # **Полезное:**
 
@@ -688,7 +799,7 @@ yc managed-kubernetes cluster stop k8s-4otus
 yc managed-kubernetes cluster start k8s-4otus
 ~~~
 
-## **Полезные команды fluxctl**
+### **Полезные команды fluxctl**
 
 - синхронизация вручную
 ~~~bash
@@ -698,6 +809,11 @@ fluxctl --k8s-fwd-ns flux sync
 - переменная окружения, указывающая на namespace, в который установлен flux (альтернатива ключу --k8s-fwd-ns <flux installation ns> )
 ~~~bash
 export FLUX_FORWARD_NAMESPACE=flux
+~~~
+
+- приндительно запустить синхронизацию состояния git репозитория с кластером (при условии установленной переменной `FLUX_FORWARD_NAMESPACE`)
+~~~bash
+fluxctl sync
 ~~~
 
 - посмотреть все workloads, которые находятся в зоне видимости flux
@@ -716,5 +832,14 @@ fluxctl deautomate
 fluxctl automate 
 ~~~
 
+- установить всем сервисам в workload `microservices-demo:helmrelease/frontend` политику обновления образов из Registry
+на базе семантического версионирования c маской `0.1.*`
+~~~bash
+fluxctl policy -w microservices-demo:helmrelease/frontend --tag-all='semver:~0.1'
+~~~
 
+- принудительно инициировать сканирование Registry на предмет наличия свежих Docker  образов
+~~~bash
+fluxctl release --workload=microservicesdemo:helmrelease/frontend --update-all-images
+~~~
 </details>
