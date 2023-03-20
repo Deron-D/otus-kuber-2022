@@ -568,13 +568,13 @@ frontend        microservices-demo      1               2023-03-19 15:58:09.6271
 
 Т.к. у нас закончилось время на раннерах GitLab вместо сборки нам остается только тегирование образа до версии v0.0.2
 ~~~bash
-docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d registry.gitlab.com/dpnev/microservices-demo:v0.0.3
-docker push registry.gitlab.com/dpnev/microservices-demo:v0.0.2
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.5
+docker push registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.5
 ~~~
 
 Дождемся автоматического обновления релиза в Kubernetes кластере
 ~~~bash
-helm history frontend -n microservices-demo                                                                    
+watch helm history frontend -n microservices-demo                                                                    
 ~~~
 ~~~
 REVISION        UPDATED                         STATUS          CHART           APP VERSION     DESCRIPTION     
@@ -584,6 +584,78 @@ REVISION        UPDATED                         STATUS          CHART           
 
 Проверим, изменилось ли что-либо в git-репозитории (в частности, в файле deploy/releases/frontend.yaml )
 ![img_3.png](img_3.png)
+
+### Обновление Helm chart
+
+1. Попробуем внести изменения в Helm chart frontend и поменять имя `deployment` на `frontend-hipster`
+2. Сделаем push измененного Helm chart в GitLab и понаблюдаем за процессом
+~~~
+│ ts=2023-03-19T18:14:38.005391399Z caller=release.go:353 component=release release=frontend targetNamespace=microservices-demo resource=microservices-demo:helmrelease/frontend helmVersion=v3 info="running upgrade" action=upgrade                                            │
+│ ts=2023-03-19T18:14:38.043672831Z caller=helm.go:69 component=helm version=v3 info="preparing upgrade for frontend" targetNamespace=microservices-demo release=frontend                                                                                                        │
+│ ts=2023-03-19T18:14:38.049694917Z caller=helm.go:69 component=helm version=v3 info="resetting values to the chart's original version" targetNamespace=microservices-demo release=frontend                                                                                      │
+│ ts=2023-03-19T18:14:39.08960667Z caller=helm.go:69 component=helm version=v3 info="performing update for frontend" targetNamespace=microservices-demo release=frontend                                                                                                         │
+│ ts=2023-03-19T18:14:39.116000675Z caller=helm.go:69 component=helm version=v3 info="creating upgraded release for frontend" targetNamespace=microservices-demo release=frontend                                                                                                │
+│ ts=2023-03-19T18:14:39.131266821Z caller=helm.go:69 component=helm version=v3 info="checking 5 resources for changes" targetNamespace=microservices-demo release=frontend                                                                                                      │
+│ ts=2023-03-19T18:14:39.139887602Z caller=helm.go:69 component=helm version=v3 info="Looks like there are no changes for Service \"frontend\"" targetNamespace=microservices-demo release=frontend                                                                              │
+│ ts=2023-03-19T18:14:39.170376272Z caller=helm.go:69 component=helm version=v3 info="Created a new Deployment called \"frontend-hipster\" in microservices-demo\n" targetNamespace=microservices-demo release=frontend                                                          │
+│ ts=2023-03-19T18:14:39.341628164Z caller=helm.go:69 component=helm version=v3 info="Deleting \"frontend\" in microservices-demo..." targetNamespace=microservices-demo release=frontend                                                                                        │
+│ ts=2023-03-19T18:14:39.360912302Z caller=helm.go:69 component=helm version=v3 info="updating status for upgraded release for frontend" targetNamespace=microservices-demo release=frontend                                                                                     │
+│ ts=2023-03-19T18:14:39.459025259Z caller=release.go:364 component=release release=frontend targetNamespace=microservices-demo resource=microservices-demo:helmrelease/frontend helmVersion=v3 info="upgrade succeeded" revision=6b577e2a2cc3e7b05b5bc0e16e4eb4d1249ddddd phase │
+│ ts=2023-03-19T18:15:08.291572703Z caller=release.go:79 component=release release=frontend targetNamespace=microservices-demo resource=microservices-demo:helmrelease/frontend helmVersion=v3 info="starting sync run"                                                          │
+│ ts=2023-03-19T18:15:08.683990547Z caller=release.go:289 component=release release=frontend targetNamespace=microservices-demo resource=microservices-demo:helmrelease/frontend helmVersion=v3 info="running dry-run upgrade to compare with release version '5'" action=dry-ru │
+│ ts=2023-03-19T18:15:08.69136116Z caller=helm.go:69 component=helm version=v3 info="preparing upgrade for frontend" targetNamespace=microservices-demo release=frontend                                                                                                         │
+│ ts=2023-03-19T18:15:08.699723971Z caller=helm.go:69 component=helm version=v3 info="resetting values to the chart's original version" targetNamespace=microservices-demo release=frontend                                                                                      │
+~~~
+
+### Самостоятельное задание
+
+Добавим манифесты HelmRelease для всех микросервисов входящих в состав HipsterShop
+Проверим, что все микросервисы успешно развернулись в Kubernetes кластере:
+~~~bash
+#docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.5
+#docker push registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.5
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/adservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/adservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/adservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/adservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/cartservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/cartservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/cartservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/cartservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/checkoutservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/checkoutservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/checkoutservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/checkoutservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/currencyservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/currencyservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/currencyservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/currencyservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/emailservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/emailservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/emailservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/emailservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/loadgenerator:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/loadgenerator:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/loadgenerator:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/loadgenerator:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/paymentservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/paymentservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/paymentservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/paymentservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/productcatalogservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/productcatalogservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/productcatalogservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/productcatalogservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/recommendationservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/recommendationservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/recommendationservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/recommendationservice:v0.0.1
+
+docker pull cr.yandex/crpn6n5ssda7s8tdsdf5/shippingservice:41ff6a8d
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/shippingservice:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/shippingservice:v0.0.1
+docker push registry.gitlab.com/dpnev/microservices-demo/shippingservice:v0.0.1
+~~~
+
+
 
 # **Полезное:**
 
@@ -597,6 +669,10 @@ yc managed-kubernetes cluster stop k8s-4otus
 
 ~~~bash
 yc managed-kubernetes cluster start k8s-4otus
+~~~
+
+~~~bash
+fluxctl --k8s-fwd-ns flux sync
 ~~~
 
 </details>
