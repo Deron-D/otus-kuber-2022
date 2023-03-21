@@ -717,8 +717,8 @@ kubectl apply -f https://raw.githubusercontent.com/weaveworks/flagger/master/art
 helm upgrade --install flagger flagger/flagger \
 --namespace=istio-system \
 --set crd.create=false \
---set meshProvider=istio \
---set metricsServer=http://prometheus:9090
+--set meshProvider=istio
+#--set metricsServer=http://prometheus-operated.monitoring.svc.cluster.local:9090
 ~~~
 
 ### Istio | Sidecar Injection
@@ -788,8 +788,8 @@ kubectl describe pod -l app=frontend -n microservices-demo
 Чтобы настроить маршрутизацию трафика к приложению с использованием `Istio`, нам необходимо добавить ресурсы
 `VirtualService` и `Gateway`
 Создадим директорию `deploy/istio` и поместим в нее следующие манифесты:
-- [frontend-vs.yaml](microservices-demo/deploy/istio/frontend-vs.yaml)
-- [frontend-gw.yaml](microservices-demo/deploy/istio/frontend-gw.yaml)
+- [frontend-vs.yaml](./deploy/istio/frontend-vs.yaml)
+- [frontend-gw.yaml](./deploy/istio/frontend-gw.yaml)
 
 Созданный Gateway можно увидеть следующим образом:
 ~~~bash
@@ -800,9 +800,70 @@ NAME               AGE
 frontend-gateway   17m
 ~~~
 
-Для доступа снаружи нам понадобится EXTERNAL-IP сервиса `istio-ingress`:
+Для доступа снаружи нам понадобится EXTERNAL-IP (INGRESS_HOST) сервиса `istio-ingress`:
 ~~~bash
-kubectl get svc istio-ingress -n istio-ingress 
+export INGRESS_NAME=istio-ingress
+export INGRESS_NS=istio-ingress 
+kubectl get svc "$INGRESS_NAME" -n "$INGRESS_NS"
+export INGRESS_HOST=$(kubectl -n "$INGRESS_NS" get service "$INGRESS_NAME" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+export INGRESS_PORT=$(kubectl -n "$INGRESS_NS" get service "$INGRESS_NAME" -o jsonpath='{.spec.ports[?(@.name=="http2")].port}')
+export SECURE_INGRESS_PORT=$(kubectl -n "$INGRESS_NS" get service "$INGRESS_NAME" -o jsonpath='{.spec.ports[?(@.name=="https")].port}')
+echo "INGRESS_HOST=$INGRESS_HOST, INGRESS_PORT=$INGRESS_PORT"
+echo "INGRESS_HOST=$INGRESS_HOST, INGRESS_PORT=$SECURE_INGRESS_PORT"
+~~~
+
+
+### Istio | Самостоятельное задание
+
+В нашей ситуации ресурсы `Gateway` и `VirtualService` логически являются частью инфраструктурного кода, описывающего окружение
+микросервиса frontend. Поэтому, оправданно будет перенести манифесты в Helm chart. Дополним Helm chart frontend 
+манифестами `gateway.yaml` и `virtualService.yaml` (на самом деле они уже там присутствовали из исходного репозитория `express42`).
+Правим только `gateway.yaml` в соответствии с документацией `istio`, т.к. мы устанавливали Istio, `using Helm following the standard documentation`
+~~~yaml
+...
+# The selector matches the ingress gateway pod labels.
+# If you installed Istio using Helm following the standard documentation, this would be "istio=ingress"
+spec:
+selector:
+#istio: ingressgateway <- remove
+istio: ingress # <- add
+...
+~~~
+
+Оригинальные манифесты удалим вместе с директорией `deploy/istio`.
+
+
+### Flagger | Canary
+Перейдем непосредственно к настройке канареечных релизов. Добавим в Helm chart `frontend` еще один файл - `canary.yaml`
+В нем будем хранить описание стратегии, по которой необходимо обновлять данный микросервис.
+> Узнать подробнее о Canary Custom Resource можно по ссылке https://docs.flagger.app/how-it-works#canary-custom-resource
+
+Проверим, что Flagger инициализировал canary ресурс frontend:
+~~~bash
+kubectl get canary -n microservices-demo
+~~~
+~~~
+NAME       STATUS         WEIGHT   LASTTRANSITIONTIME
+frontend   Initializing   0        2023-03-21T07:20:31
+~~~
+
+Обновил pod, добавив ему к названию постфикс `primary`:
+~~~bash
+kubectl get pods -n microservices-demo -l app=frontend-primary
+~~~
+~~~
+NAME                                        READY   STATUS    RESTARTS   AGE
+frontend-hipster-primary-79544c5d7b-xvcl5   2/2     Running   0          117s
+~~~
+
+Попробуем провести релиз. Соберите новый образ frontend с тегом v0.0.3 и сделайте push в Registry.
+Через некоторое время в выводе kubectl describe canary frontend -n microservices-demo мы сможем наблюдать следующую
+картину:
+
+
+Смотрим логи `helm-operator-55769d46b8-wrjln`
+~~~bash
+kubectl logs helm-operator-55769d46b8-wrjln -n flux | grep frontend | grep -i error
 ~~~
 
 # **Полезное:**
@@ -831,7 +892,7 @@ fluxctl --k8s-fwd-ns flux sync
 export FLUX_FORWARD_NAMESPACE=flux
 ~~~
 
-- приндительно запустить синхронизацию состояния git репозитория с кластером (при условии установленной переменной `FLUX_FORWARD_NAMESPACE`)
+- принудительно запустить синхронизацию состояния git репозитория с кластером (при условии установленной переменной `FLUX_FORWARD_NAMESPACE`)
 ~~~bash
 fluxctl sync
 ~~~
