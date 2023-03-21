@@ -891,6 +891,14 @@ kubectl describe canary frontend -n microservices-demo
   Normal   Synced  9m3s (x6 over 14m)  flagger  (combined from similar events): Promotion completed! Scaling down frontend.microservices-demo
 ~~~
 
+~~~bash
+kubectl get canaries -n microservices-demo 
+~~~
+~~~
+NAME       STATUS      WEIGHT   LASTTRANSITIONTIME
+frontend   Succeeded   0        2023-03-21T10:09:02Z
+~~~
+
 Ссылка на репозиторий - https://gitlab.com/dpnev/microservices-demo/
 
 # **Полезное:**
