@@ -713,12 +713,17 @@ kubectl apply -f https://raw.githubusercontent.com/weaveworks/flagger/master/art
 ~~~
 
 - Установка flagger с указанием использовать Istio:
+Установим сначала prometheus
+~~~bash
+helm install prometheus -n istio-system prometheus-community/prometheus
+~~~
+
 ~~~bash
 helm upgrade --install flagger flagger/flagger \
 --namespace=istio-system \
 --set crd.create=false \
---set meshProvider=istio
-#--set metricsServer=http://prometheus-operated.monitoring.svc.cluster.local:9090
+--set meshProvider=istio \
+--set metricsServer=http://prometheus-server:80
 ~~~
 
 ### Istio | Sidecar Injection
@@ -812,6 +817,7 @@ echo "INGRESS_HOST=$INGRESS_HOST, INGRESS_PORT=$INGRESS_PORT"
 echo "INGRESS_HOST=$INGRESS_HOST, INGRESS_PORT=$SECURE_INGRESS_PORT"
 ~~~
 
+![img_4.png](img_4.png)
 
 ### Istio | Самостоятельное задание
 
@@ -856,10 +862,17 @@ NAME                                        READY   STATUS    RESTARTS   AGE
 frontend-hipster-primary-79544c5d7b-xvcl5   2/2     Running   0          117s
 ~~~
 
-Попробуем провести релиз. Соберите новый образ frontend с тегом v0.0.3 и сделайте push в Registry.
-Через некоторое время в выводе kubectl describe canary frontend -n microservices-demo мы сможем наблюдать следующую
+Попробуем провести релиз. Соберите новый образ frontend с тегом v0.0.6 и сделайте push в Registry.
+Через некоторое время в выводе `kubectl describe canary frontend -n microservices-demo` мы сможем наблюдать следующую
 картину:
+~~~bash
+docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.7
+docker push registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.7
+~~~
 
+~~~bash
+kubectl describe canary frontend -n microservices-demo
+~~~
 
 Смотрим логи `helm-operator-55769d46b8-wrjln`
 ~~~bash
