@@ -866,17 +866,29 @@ frontend-hipster-primary-79544c5d7b-xvcl5   2/2     Running   0          117s
 Через некоторое время в выводе `kubectl describe canary frontend -n microservices-demo` мы сможем наблюдать следующую
 картину:
 ~~~bash
-docker tag cr.yandex/crpn6n5ssda7s8tdsdf5/frontend:41ff6a8d registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.7
-docker push registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.7
+docker build ./ -t registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.9
+docker push registry.gitlab.com/dpnev/microservices-demo/frontend:v0.0.9
 ~~~
 
 ~~~bash
 kubectl describe canary frontend -n microservices-demo
 ~~~
-
-Смотрим логи `helm-operator-55769d46b8-wrjln`
-~~~bash
-kubectl logs helm-operator-55769d46b8-wrjln -n flux | grep frontend | grep -i error
+~~~
+  Type     Reason  Age                 From     Message
+  ----     ------  ----                ----     -------
+  Warning  Synced  20m                 flagger  frontend-primary.microservices-demo not ready: waiting for rollout to finish: observed deployment generation less than desired generation
+  Normal   Synced  20m (x2 over 20m)   flagger  all the metrics providers are available!
+  Normal   Synced  20m                 flagger  Initialization done! frontend.microservices-demo
+  Normal   Synced  17m                 flagger  Starting canary analysis for frontend.microservices-demo
+  Warning  Synced  17m                 flagger  canary deployment frontend.microservices-demo not ready: waiting for rollout to finish: 1 old replicas are pending termination
+  Normal   Synced  13m (x2 over 18m)   flagger  New revision detected! Scaling up frontend.microservices-demo
+  Normal   Synced  12m (x2 over 17m)   flagger  Advance frontend.microservices-demo canary weight 10
+  Normal   Synced  12m (x2 over 16m)   flagger  Advance frontend.microservices-demo canary weight 20
+  Normal   Synced  11m (x2 over 16m)   flagger  Advance frontend.microservices-demo canary weight 30
+  Normal   Synced  11m (x2 over 15m)   flagger  Advance frontend.microservices-demo canary weight 40
+  Normal   Synced  10m (x2 over 15m)   flagger  Advance frontend.microservices-demo canary weight 50
+  Normal   Synced  10m                 flagger  Copying frontend.microservices-demo template spec to frontend-primary.microservices-demo
+  Normal   Synced  9m3s (x6 over 14m)  flagger  (combined from similar events): Promotion completed! Scaling down frontend.microservices-demo
 ~~~
 
 # **Полезное:**
