@@ -96,7 +96,7 @@ ui:
 
 - Установим `vault`
 ~~~bash
-helm install vault vault-helm
+helm install vault vault-helm -f ../vault.values.yaml
 helm status vault
 ~~~
 ~~~
@@ -231,7 +231,7 @@ helm uninstall consul
 kubectl delete pvc data-default-consul-consul-server-{0,1,2}
 
 helm install consul consul-helm
-helm install vault vault-helm
+helm install vault vault-helm -f ../vault.values.yaml
 kubectl get pvc
 ~~~
 ~~~bash
