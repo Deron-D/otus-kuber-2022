@@ -50,9 +50,10 @@ k8s-4otus-node3   Ready    <none>   98s    v1.24.6
 
 ### 2. Инсталляция hashicorp vault HA в k8s
  
-- склонируем репозиторий `consul` (необходимо минимум 3 ноды)
+- "склонируем" репозиторий `consul` (необходимо минимум 3 ноды)
 ~~~bash
-git clone https://github.com/hashicorp/consul-helm.git
+#git clone https://github.com/hashicorp/consul-helm.git
+git submodule add https://github.com/hashicorp/consul-helm.git kubernetes-vault/consul-helm
 helm install consul consul-helm
 ~~~
 ~~~bash
@@ -77,9 +78,10 @@ data-default-consul-consul-server-1   Bound    pvc-87edc4b9-0711-4a11-a3b4-d1861
 data-default-consul-consul-server-2   Bound    pvc-7c3392f9-8867-4fae-a8b9-c175b111b918   10Gi       RWO            yc-network-hdd   27s
 ~~~
 
-- склонируем репозиторий `vault`
+- "склонируем" репозиторий `vault`
 ~~~bash
-git clone https://github.com/hashicorp/vault-helm.git
+#git clone https://github.com/hashicorp/vault-helm.git
+git submodule add https://github.com/hashicorp/vault-helm.git  kubernetes-vault/vault-helm
 ~~~
 - Отредактируем параметры установки в `values.yaml`
 ~~~yaml
@@ -96,7 +98,7 @@ ui:
 
 - Установим `vault`
 ~~~bash
-helm install vault vault-helm -f ../vault.values.yaml
+helm install vault vault-helm -f ./vault.values.yaml
 helm status vault
 ~~~
 ~~~
@@ -169,6 +171,8 @@ It is possible to generate new unseal keys, provided you have a quorum of
 existing unseal keys shares. See "vault operator rekey" for more information.
 ~~~
 
+- поэкспериментируем с разными значениями `--key-shares` `--key-threshold`
+
 > -key-shares (int: 5) - Number of key shares to split the generated master key into. This is the number of "unseal keys" to generate. This is aliased as -n.
 
 > -key-threshold (int: 3) - Number of key shares required to reconstruct the root key. This must be less than or equal to -key-shares. This is aliased as -t.
@@ -231,16 +235,16 @@ helm uninstall consul
 kubectl delete pvc data-default-consul-consul-server-{0,1,2}
 
 helm install consul consul-helm
-helm install vault vault-helm -f ../vault.values.yaml
+helm install vault vault-helm -f ./vault.values.yaml
 kubectl get pvc
 ~~~
 ~~~bash
 kubectl exec -it vault-0 -- vault operator init --key-shares=1 --key-threshold=1
 ~~~
 ~~~
-Unseal Key 1: CSRX+WYAE87N+bbttqpnF9vwSOjqkPLtUhCSojmKeAY=
+Unseal Key 1: sVFKb6bXo0bemKxLpDoSOxHQVzjknvZtiQRS8d0o3SM=
 
-Initial Root Token: hvs.ussR8jxWWjNSXSRAjpZ8lebL
+Initial Root Token: `hvs.i3LjsnapzVlIUF0spfZTlhlr`
 
 Vault initialized with 1 key shares and a key threshold of 1. Please securely
 distribute the key shares printed above. When the Vault is re-sealed,
@@ -254,5 +258,129 @@ It is possible to generate new unseal keys, provided you have a quorum of
 existing unseal keys shares. See "vault operator rekey" for more information.
 ~~~
 
+- Проверим состояние vault'а
+~~~bash
+kubectl exec -it vault-0 -- vault status
+~~~
+~~~
+Key                Value
+---                -----
+Seal Type          shamir
+Initialized        true
+Sealed             true
+Total Shares       1
+Threshold          1
+Unseal Progress    0/1
+Unseal Nonce       n/a
+Version            1.12.1
+Build Date         2022-10-27T12:32:05Z
+Storage Type       consul
+HA Enabled         true
+command terminated with exit code 2
+~~~
+
+### Распечатаем vault
+- Обратим внимание на переменные окружения в подах
+~~~bash
+kubectl exec vault-0 -- env | grep VAULT_ADDR
+~~~
+~~~
+VAULT_ADDR=http://127.0.0.1:8200
+~~~
+- Распечатать нужно каждый под
+~~~bash
+kubectl exec -it vault-0 -- vault operator unseal
+~~~
+~~~
+Unseal Key (will be hidden): 
+Key             Value
+---             -----
+Seal Type       shamir
+Initialized     true
+Sealed          false
+Total Shares    1
+Threshold       1
+Version         1.12.1
+Build Date      2022-10-27T12:32:05Z
+Storage Type    consul
+Cluster Name    vault-cluster-402833f3
+Cluster ID      9015a738-22de-2cd9-dbd9-c848ee9401f0
+HA Enabled      true
+HA Cluster      https://vault-0.vault-internal:8201
+HA Mode         active
+Active Since    2023-03-26T15:17:05.513242489Z
+~~~
+
+~~~bash
+kubectl exec -it vault-1 -- vault operator unseal
+~~~
+~~~
+Unseal Key (will be hidden): 
+Key                    Value
+---                    -----
+Seal Type              shamir
+Initialized            true
+Sealed                 false
+Total Shares           1
+Threshold              1
+Version                1.12.1
+Build Date             2022-10-27T12:32:05Z
+Storage Type           consul
+Cluster Name           vault-cluster-402833f3
+Cluster ID             9015a738-22de-2cd9-dbd9-c848ee9401f0
+HA Enabled             true
+HA Cluster             https://vault-0.vault-internal:8201
+HA Mode                standby
+Active Node Address    http://10.112.129.9:8200
+
+~~~
+~~~bash
+kubectl exec -it vault-2 -- vault operator unseal
+~~~
+~~~
+Unseal Key (will be hidden):
+Key                    Value
+---                    -----
+Seal Type              shamir
+Initialized            true
+Sealed                 false
+Total Shares           1
+Threshold              1
+Version                1.12.1
+Build Date             2022-10-27T12:32:05Z
+Storage Type           consul
+Cluster Name           vault-cluster-402833f3
+Cluster ID             9015a738-22de-2cd9-dbd9-c848ee9401f0
+HA Enabled             true
+HA Cluster             https://vault-0.vault-internal:8201
+HA Mode                standby
+Active Node Address    http://10.112.129.9:8200
+~~~
+
+- Посмотрим список доступных авторизаций
+~~~bash
+kubectl exec -it vault-0 -- vault auth list
+~~~
+
+- получим ошибку
+~~~
+Error listing enabled authentications: Error making API request.
+
+URL: GET http://127.0.0.1:8200/v1/sys/auth
+Code: 403. Errors:
+
+* permission denied
+command terminated with exit code 2
+~~~
+
 ## **Полезное:**
 
+Start
+~~~bash
+yc managed-kubernetes cluster start k8s-4otus
+~~~
+
+Stop
+~~~bash
+yc managed-kubernetes cluster stop k8s-4otus
+~~~
