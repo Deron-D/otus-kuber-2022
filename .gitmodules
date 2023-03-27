@@ -7,6 +7,6 @@
 [submodule "kubernetes-vault/consul-helm"]
 	path = kubernetes-vault/consul-helm
 	url = https://github.com/hashicorp/consul-helm.git
-[submodule "kubernetes-vault/kubernetes-vault/vault-guides"]
-	path = kubernetes-vault/kubernetes-vault/vault-guides
+[submodule "kubernetes-vault/vault-guides"]
+	path = kubernetes-vault/vault-guides
 	url = https://github.com/hashicorp/vault-guides.git
