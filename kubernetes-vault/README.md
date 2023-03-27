@@ -734,6 +734,143 @@ capabilities = ["read", "create", "list", "update", "delete"]
 }
 ~~~
 
+- Заберем репозиторий с примерами
+~~~bash
+cd ..
+git submodule add https://github.com/hashicorp/vault-guides.git kubernetes-vault/vault-guides
+~~~
+
+В каталоге `configs-k8s` скорректируем конфиги с учетом ранее созданных ролей и секретов.
+Проверим и скорректируем конфиг `example-k8s-spec.yml`,`configmap.yaml`
+
+- Запускаем пример
+~~~bash
+# Create a ConfigMap, example-vault-agent-config
+kubectl create configmap example-vault-agent-config --from-file=./configs-k8s/
+~~~
+~~~bash
+# View the created ConfigMap
+kubectl get configmap example-vault-agent-config -o yaml
+~~~
+
+<details>
+  <summary>example-vault-agent-config</summary>
+
+~~~yaml
+apiVersion: v1
+data:
+  configmap.yaml: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: example-vault-agent-config
+      namespace: default
+    data:
+      vault-agent-config.hcl: |
+        # Comment this out if running as sidecar instead of initContainer
+        exit_after_auth = true
+
+        pid_file = "/home/vault/pidfile"
+
+        auto_auth {
+            method "kubernetes" {
+                mount_path = "auth/kubernetes"
+                config = {
+                    role = "otus"
+                }
+            }
+
+            sink "file" {
+                config = {
+                    path = "/home/vault/.vault-token"
+                }
+            }
+        }
+
+        template {
+        destination = "/etc/secrets/index.html"
+        contents = <<EOT
+        <html>
+        <body>
+        <p>Some secrets:</p>
+        {{- with secret "otus/otus-ro/config" }}
+        <ul>
+        <li><pre>username: {{ .Data.data.username }}</pre></li>
+        <li><pre>password: {{ .Data.data.password }}</pre></li>
+        </ul>
+        {{ end }}
+        </body>
+        </html>
+        EOT
+        }
+  example-k8s-spec.yaml: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: vault-agent-example
+      namespace: default
+    spec:
+      serviceAccountName: vault-auth
+
+      volumes:
+      - configMap:
+          items:
+          - key: vault-agent-config.hcl
+            path: vault-agent-config.hcl
+          name: example-vault-agent-config
+        name: config
+      - emptyDir: {}
+        name: shared-data
+
+      initContainers:
+      - args:
+        - agent
+        - -config=/etc/vault/vault-agent-config.hcl
+        - -log-level=debug
+        env:
+        - name: VAULT_ADDR
+          value: http://vault:8200
+        image: vault
+        name: vault-agent
+        volumeMounts:
+        - mountPath: /etc/vault
+          name: config
+        - mountPath: /etc/secrets
+          name: shared-data
+
+      containers:
+      - image: nginx
+        name: nginx-container
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: shared-data
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2023-03-27T21:26:05Z"
+  name: example-vault-agent-config
+  namespace: default
+  resourceVersion: "53122"
+  uid: 15f443ff-ec76-4d6c-96a9-820a081014de
+~~~
+
+</details>
+
+~~~bash
+# Finally, create vault-agent-example Pod
+kubectl apply -f ./configs-k8s/example-k8s-spec.yaml --record
+~~~
+~~~
+Flag --record has been deprecated, --record will be removed in the future
+pod/vault-agent-example created
+~~~
+
+- Проверка
+~~~bash
+kubectl exec -ti vault-agent-example -c nginx-container  -- cat /usr/share/nginx/html/index.html
+~~~
+
 ## **Полезное:**
 
 Start
@@ -746,3 +883,4 @@ Stop
 yc managed-kubernetes cluster stop k8s-4otus
 ~~~
 
+</details>
