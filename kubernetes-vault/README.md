@@ -873,6 +873,8 @@ kubectl exec -ti vault-agent-example -c nginx-container  -- cat /usr/share/nginx
 
 ## **Полезное:**
 
+>https://developer.hashicorp.com/vault/tutorials/kubernetes/agent-kubernetes
+
 Start
 ~~~bash
 yc managed-kubernetes cluster start k8s-4otus
