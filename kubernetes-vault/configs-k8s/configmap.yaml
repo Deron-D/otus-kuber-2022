@@ -33,8 +33,8 @@ data:
     <p>Some secrets:</p>
     {{- with secret "otus/otus-ro/config" }}
     <ul>
-    <li><pre>username: {{ .Data.data.username }}</pre></li>
-    <li><pre>password: {{ .Data.data.password }}</pre></li>
+    <li><pre>username: {{ .Data.username }}</pre></li>
+    <li><pre>password: {{ .Data.password }}</pre></li>
     </ul>
     {{ end }}
     </body>
