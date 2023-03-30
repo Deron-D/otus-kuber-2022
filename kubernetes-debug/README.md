@@ -435,7 +435,7 @@ Events:
   Normal   Started     47m (x5 over 57m)      kubelet               Started container netperf-client-4e4d7f89dffd
   Warning  BackOff     6m58s (x123 over 52m)  kubelet               Back-off restarting failed container
   Normal   Pulled      2m5s (x12 over 57m)    kubelet               Container image "tailoredcloud/netperf:v2.7" already present on machine
-  Warning  PacketDrop  2m5s (x11 over 55m)    kube-iptables-tailer  Packet dropped when sending traffic to netperf-server-4e4d7f89dffd (10.244.45.219)
+  Warning  PacketDrop  2m5s (x11 over 55m)    kube-iptables-tailer  Packet dropped when sending traffic to netperf-server-4e4d7f89dffd (192.168.162.149)
 ...  
 ~~~
 
