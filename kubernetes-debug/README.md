@@ -23,42 +23,11 @@
 
 ### Подготовка
 
-Т.к. ДЗ явно c `A LOT OF DEPRECATED` ссылок, инструментов, манифестов & etc,  
-- запускаем кластер с версией кубера `1.19.6`
 ~~~bash
-kind create cluster --config kind-config.yaml
-~~~ 
-
-- установим Сalico
-> https://docs.tigera.io/calico/latest/getting-started/kubernetes/minikube
-
-~~~bash
-kubectl apply -f https://docs.projectcalico.org/v3.8/manifests/calico.yaml
-kubectl -n kube-system set env daemonset/calico-node FELIX_IGNORELOOSERPF=true
-~~~
-
-- проверим успешный запуск `calico`
-~~~bash
-kubectl -n kube-system get pods -l k8s-app="calico-node" -w
+minikube
 ~~~
 
 ### 1. Кubectl debug / strace
-
-- воспроизводим проблему c `kubectl debug`:
-~~~bash
-kubectl run nginx --image=nginx
-~~~
-~~~bash
-kubectl debug nginx -it --image=nicolaka/netshoot --copy-to=debug-nginx
-~~~
-~~~
-debug-nginx# strace -c -p1
-strace: attach: ptrace(PTRACE_SEIZE, 1): Operation not permitted
-~~~
-т.к. отсутствует соответствующий capability `SYS_PTRACE`
-
-В исходном же коде `kubectl-debug` присутствует инструкция `CapAdd:      strslice.StrSlice([]string{"SYS_PTRACE", "SYS_ADMIN"}),`  
-> https://github.com/aylei/kubectl-debug/blob/5364033c9ff968c956e2db896a9f1a57f034ed86/pkg/agent/runtime.go#L152
 
 - Установим бинарь `kubectl-debug`:
 > https://github.com/aylei/kubectl-debug/releases
@@ -78,11 +47,72 @@ debug version v0.0.0-master+$Format:%h$
 
 - Install the debug agent DaemonSet
 ~~~bash
-curl -Lo strace/agent_daemonset.yml https://raw.githubusercontent.com/aylei/kubectl-debug/master/scripts/agent_daemonset.yml
+curl -Lo strace/agent_daemonset.yml https://raw.githubusercontent.com/aylei/kubectl-debug/dd7e4965e4ae5c4f53e6cf9fd17acc964274ca5c/scripts/agent_daemonset.yml
 ~~~
 ~~~bash
 kubectl apply -f strace/agent_daemonset.yml
 ~~~
+~~~console
+error: resource mapping not found for name: "debug-agent" namespace: "" from "strace/agent_daemonset.yml": no matches for kind "DaemonSet" in version "extensions/v1beta1"
+ensure CRDs are installed first
+~~~
+
+- правим `apiVersion: apps/v1` и перезапускаем установку
+~~~bash
+kubectl apply -f strace/agent_daemonset.yml
+~~~
+
+- воспроизводим проблему c `kubectl-debug`:
+~~~bash
+kubectl run nginx --image=nginx
+~~~
+
+~~~bash
+kubectl-debug nginx --agentless=false --port-forward=true
+~~~
+~~~
+PID   USER     TIME  COMMAND
+    1 root      0:00 nginx: master process nginx -g daemon off;
+   29 101       0:00 nginx: worker process
+   30 101       0:00 nginx: worker process
+   31 101       0:00 nginx: worker process
+   32 101       0:00 nginx: worker process
+   33 101       0:00 nginx: worker process
+   34 101       0:00 nginx: worker process
+   35 101       0:00 nginx: worker process
+   36 101       0:00 nginx: worker process
+   37 101       0:00 nginx: worker process
+   38 101       0:00 nginx: worker process
+   39 101       0:00 nginx: worker process
+   40 101       0:00 nginx: worker process
+   41 root      0:00 bash
+   47 root      0:00 ps
+nginx:~#  strace -c -p1
+strace: attach: ptrace(PTRACE_SEIZE, 1): Operation not permitted
+nginx:~# 
+~~~
+т.к. отсутствует соответствующий capability `SYS_PTRACE`
+
+- Заходим на `ноду` и проверяем `docker capabilities`:
+~~~bash
+minikube ssh
+~~~
+~~~console
+docker ps | grep debug-agent
+13313e781289   aylei/debug-agent      "/bin/debug-agent"       6 minutes ago    Up 6 minutes              k8s_debug-agent_debug-agent-2mpft_default_647b7394-9d6c-46d5-bbfd-9a73d9fb617d_0
+66d0f401aa08   k8s.gcr.io/pause:3.6   "/pause"                 6 minutes ago    Up 6 minutes              k8s_POD_debug-agent-2mpft_default_647b7394-9d6c-46d5-bbfd-9a73d9fb617d_0
+~~~
+
+
+В исходном же коде `kubectl-debug` присутствует инструкция `CapAdd:      strslice.StrSlice([]string{"SYS_PTRACE", "SYS_ADMIN"}),`
+> https://github.com/aylei/kubectl-debug/blob/5364033c9ff968c956e2db896a9f1a57f034ed86/pkg/agent/runtime.go#L152
+
+~~~bash
+~~~bash
+kubectl delete -f strace/agent_daemonset.yml
+curl -Lo strace/agent_daemonset.yml https://raw.githubusercontent.com/aylei/kubectl-debug/master/scripts/agent_daemonset.yml
+~~~
+
 
 - Пробуем повторно запустить `strace`
 ~~~bash
@@ -101,6 +131,26 @@ strace: Process 1 attached
 ~~~
 
 ### 2. Iptables-tailer
+
+Т.к. ДЗ явно c `A LOT OF DEPRECATED` ссылок, инструментов, манифестов & etc,
+- запускаем кластер с версией кубера `1.19.6`
+~~~bash
+kind create cluster --config kind-config.yaml
+~~~ 
+
+- установим Сalico
+> https://docs.tigera.io/calico/latest/getting-started/kubernetes/minikube
+
+~~~bash
+kubectl apply -f https://docs.projectcalico.org/v3.8/manifests/calico.yaml
+kubectl -n kube-system set env daemonset/calico-node FELIX_IGNORELOOSERPF=true
+~~~
+
+- проверим успешный запуск `calico`
+~~~bash
+kubectl -n kube-system get pods -l k8s-app="calico-node" -w
+~~~
+
 
 > https://github.com/box/kube-iptables-tailer
 
