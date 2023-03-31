@@ -10,3 +10,9 @@
 [submodule "kubernetes-vault/vault-guides"]
 	path = kubernetes-vault/vault-guides
 	url = https://github.com/hashicorp/vault-guides.git
+[submodule "kubernetes-storage/kubrernetes-csi/csi-driver-host-path"]
+	path = kubernetes-storage/kubrernetes-csi/csi-driver-host-path
+	url = https://github.com/kubernetes-csi/csi-driver-host-path.git
+[submodule "kubernetes-debug/netperf-operator"]
+	path = kubernetes-debug/netperf-operator
+	url = git@github.com:piontec/netperf-operator.git
