@@ -25,7 +25,8 @@
 
 ### Выполнено:
 
-### 1. Создание нод для кластера
+### 1. Создание кластера версии 1.17 и обновление его с помощью Kubeadm
+
 В YandexCloud создадим 4 ноды с образом Ubuntu 18.04 LTS:
 - master - 1 экземпляр (standard-v2)
 - worker - 3 экземпляра (standard-v1)
@@ -807,6 +808,11 @@ ef361eajucamkc51bfl2   Ready    <none>   53m   v1.18.0   10.130.0.12   <none>   
 ef3di3tm580d0q8usv73   Ready    <none>   53m   v1.18.0   10.130.0.34   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   docker://19.3.8
 ef3em44tpsbqb6ms324m   Ready    <none>   53m   v1.18.0   10.130.0.8    <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   docker://19.3.8
 ef3l9p9usmvb78aih3i1   Ready    master   90m   v1.18.0   10.130.0.21   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   docker://19.3.8
+~~~
+
+- Чистим ресурсы
+~~~bash
+yc compute instance delete  master-node  worker-node-01 worker-node-02 worker-node-03
 ~~~
 
 ## **Полезное:**
