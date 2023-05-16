@@ -57,9 +57,9 @@ resource "local_file" "inventory" {
   )
   filename = "../kubespray/inventory/terraform/inventory.ini"
 
-#  provisioner "local-exec" {
-#    command = "sleep 180"
-#  }
+  provisioner "local-exec" {
+    command = "sleep 180"
+  }
 
   provisioner "local-exec" {
     environment = {
