@@ -57,16 +57,16 @@ resource "local_file" "inventory" {
   )
   filename = "../kubespray/inventory/terraform/inventory.ini"
 
-  provisioner "local-exec" {
-    command = "sleep 180"
-  }
+#  provisioner "local-exec" {
+#    command = "sleep 180"
+#  }
 
   provisioner "local-exec" {
     environment = {
       SSH_USERNAME    = var.ssh_username
       SSH_PRIVATE_KEY = var.private_key_path
     }
-    command     = "ansible-playbook -i inventory/terraform/inventory.ini --become --become-user=root --user=${SSH_USERNAME} --key-file=${SSH_PRIVATE_KEY} cluster.yml"
+    command     = "ansible-playbook -i inventory/terraform/inventory.ini --become --become-user=root --user=$SSH_USERNAME --key-file=$SSH_PRIVATE_KEY cluster.yml"
     working_dir = "../kubespray"
   }
 }

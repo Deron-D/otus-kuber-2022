@@ -1001,11 +1001,32 @@ yc compute instance delete master-node worker-node-01 worker-node-02 worker-node
 ~~~
 
 
+### Задание со ⭐: Автоматическое развертывание кластера с помощью `terraform` и `kubespray`
 ~~~bash
 cd terraform
 terraform init
 terraform apply --auto-approve
 ~~~
+
+~~~bash
+export HOST=84.201.144.69
+ssh ubuntu@$HOST
+sudo -s
+mkdir -p $HOME/.kube
+sudo cp -if /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+kubectl get nodes -o wide
+~~~
+~~~console
+NAME    STATUS   ROLES           AGE     VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME
+k8s-0   Ready    control-plane   7m10s   v1.26.3   10.130.0.34   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+k8s-1   Ready    control-plane   6m32s   v1.26.3   10.130.0.18   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+k8s-2   Ready    control-plane   6m14s   v1.26.3   10.130.0.29   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+k8s-3   Ready    <none>          5m8s    v1.26.3   10.130.0.9    <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+k8s-4   Ready    <none>          5m8s    v1.26.3   10.130.0.10   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+~~~
+
+
 ## **Полезное:**
 
 - Start
