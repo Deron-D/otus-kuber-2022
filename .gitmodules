@@ -16,3 +16,6 @@
 [submodule "kubernetes-debug/netperf-operator"]
 	path = kubernetes-debug/netperf-operator
 	url = git@github.com:piontec/netperf-operator.git
+[submodule "kubernetes-production/kubespray"]
+	path = kubernetes-production/kubespray
+	url = https://github.com/kubernetes-sigs/kubespray.git

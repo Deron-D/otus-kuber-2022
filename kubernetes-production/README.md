@@ -812,9 +812,200 @@ ef3l9p9usmvb78aih3i1   Ready    master   90m   v1.18.0   10.130.0.21   <none>   
 
 - Чистим ресурсы
 ~~~bash
-yc compute instance delete  master-node  worker-node-01 worker-node-02 worker-node-03
+yc compute instance delete master-node worker-node-01 worker-node-02 worker-node-03
 ~~~
 
+
+### 2. Автоматическое развертывание кластеров
+
+- Заново создаем ноды
+  В YandexCloud создадим 4 ноды с образом Ubuntu 18.04 LTS:
+- master - 1 экземпляр (standard-v2)
+- worker - 3 экземпляра (standard-v1)
+
+- Создаем `master-node`
+~~~bash
+yc compute instance create \
+  --name master-node \
+  --platform=standard-v2 \
+  --cores=4 \
+  --memory=4 \
+  --zone ru-central1-c \
+  --network-interface subnet-name=default-ru-central1-c,nat-ip-version=ipv4 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=30,type=network-ssd \
+  --ssh-key ~/.ssh/id_rsa.pub
+~~~
+
+- Создаем `worker-nodes`
+~~~bash
+yc compute instance create \
+  --name worker-node-01 \
+  --platform=standard-v1 \
+  --cores=4 \
+  --memory=4 \
+  --zone ru-central1-c \
+  --network-interface subnet-name=default-ru-central1-c,nat-ip-version=ipv4 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=30,type=network-ssd \
+  --ssh-key ~/.ssh/id_rsa.pub
+yc compute instance create \
+  --name worker-node-02 \
+  --platform=standard-v1 \
+  --cores=4 \
+  --memory=4 \
+  --zone ru-central1-c \
+  --network-interface subnet-name=default-ru-central1-c,nat-ip-version=ipv4 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=30,type=network-ssd \
+  --ssh-key ~/.ssh/id_rsa.pub
+yc compute instance create \
+  --name worker-node-03 \
+  --platform=standard-v1 \
+  --cores=4 \
+  --memory=4 \
+  --zone ru-central1-c \
+  --network-interface subnet-name=default-ru-central1-c,nat-ip-version=ipv4 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=30,type=network-ssd \
+  --ssh-key ~/.ssh/id_rsa.pub
+~~~
+
+~~~bash
+yc compute instance list | grep RUNNING
+yc compute instance list | grep RUNNING | awk '{print $10}'
+~~~
+
+~~~console
+| ef347u3ckipindgc1scb | worker-node-03  | ru-central1-c | RUNNING | 51.250.34.248  | 10.130.0.34 |
+| ef39dohi3peentbkh7m3 | worker-node-02  | ru-central1-c | RUNNING | 51.250.43.196  | 10.130.0.25 |
+| ef3k61cdq29d1opv9gfp | worker-node-01  | ru-central1-c | RUNNING | 51.250.43.49   | 10.130.0.24 |
+| ef3tdgt10qqnc25nos1a | master-node     | ru-central1-c | RUNNING | 51.250.32.46   | 10.130.0.31 |
+➜  kubernetes-production git:(kubernetes-production) ✗ yc compute instance list | grep RUNNING | awk '{print $10}'
+51.250.34.248
+51.250.43.196
+51.250.43.49
+51.250.32.46
+~~~
+
+- Установка kubespray
+> https://github.com/kubernetes-sigs/kubespray
+~~~bash
+# получение kubespray
+git submodule add https://github.com/kubernetes-sigs/kubespray.git
+# установка зависимостей
+cd kubespray 
+sudo apt install pip
+pip install -r requirements.txt
+# копирование примера конфига в отдельную директорию
+cp -rfp inventory/sample inventory/mycluster
+~~~
+
+- Правим файл inventory/mycluster/inventory.ini
+~~~ini
+# ## Configure 'ip' variable to bind kubernetes services on a
+# ## different ip than the default iface
+# ## We should set etcd_member_name for etcd cluster. The node that is not a etcd member do not need to set the value, or can set the empty string value.
+[all]
+master-node ansible_host=51.250.32.46 ip=10.130.0.31 etcd_member_name=etcd1
+worker-node-01 ansible_host=51.250.43.49 # ip=10.3.0.2 etcd_member_name=etcd2
+worker-node-02 ansible_host=51.250.43.196 # ip=10.3.0.3 etcd_member_name=etcd3
+worker-node-03 ansible_host=51.250.34.248 # ip=10.3.0.4 etcd_member_name=etcd4
+
+[kube_control_plane]
+master-node
+
+[etcd]
+master-node
+
+[kube_node]
+worker-node-01
+worker-node-02
+worker-node-03
+
+[calico_rr]
+
+[k8s_cluster:children]
+kube_control_plane
+kube_node
+calico_rr
+~~~
+
+- Проверяем доступность нод для ansible
+~~~bash
+cd kubespray
+export SSH_USERNAME=yc-user
+export SSH_PRIVATE_KEY=~/.ssh/id_rsa
+ansible all -m ping -i inventory/mycluster/inventory.ini --user=${SSH_USERNAME} --key-file=${SSH_PRIVATE_KEY}
+~~~
+~~~console
+master-node | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+worker-node-02 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+worker-node-03 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+worker-node-01 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+~~~
+
+~~~bash
+pip uninstall ansible       # if installed
+pip uninstall ansible-base  # if installed
+##pip install ansible
+~~~
+
+- Установка кластера
+~~~bash
+cd kubespray
+export SSH_USERNAME=yc-user
+export SSH_PRIVATE_KEY=~/.ssh/id_rsa
+ansible-playbook -i inventory/mycluster/inventory.ini --become --become-user=root \
+--user=${SSH_USERNAME} --key-file=${SSH_PRIVATE_KEY} cluster.yml
+~~~
+
+- С 3 попытки
+~~~console
+PLAY RECAP ****************************************************************************************************************************************************************************************************************************************************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+master-node                : ok=713  changed=72   unreachable=0    failed=0    skipped=1276 rescued=0    ignored=6   
+worker-node-01             : ok=490  changed=37   unreachable=0    failed=0    skipped=786  rescued=0    ignored=0   
+worker-node-02             : ok=490  changed=37   unreachable=0    failed=0    skipped=785  rescued=0    ignored=0   
+worker-node-03             : ok=490  changed=37   unreachable=0    failed=0    skipped=785  rescued=0    ignored=0 
+~~~
+
+~~~bash
+export HOST=51.250.32.46
+ssh yc-user@$HOST
+sudo -s
+mkdir -p $HOME/.kube
+sudo cp -if /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+kubectl get nodes -o wide
+~~~
+~~~console
+NAME             STATUS   ROLES           AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME
+master-node      Ready    control-plane   42m   v1.26.3   10.130.0.31   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+worker-node-01   Ready    <none>          40m   v1.26.3   10.130.0.24   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+worker-node-02   Ready    <none>          40m   v1.26.3   10.130.0.25   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+worker-node-03   Ready    <none>          40m   v1.26.3   10.130.0.34   <none>        Ubuntu 18.04.6 LTS   4.15.0-112-generic   containerd://1.7.1
+~~~
+
+- Чистим ресурсы
+~~~bash
+yc compute instance delete master-node worker-node-01 worker-node-02 worker-node-03
+~~~
+
+
+~~~bash
+cd terraform
+terraform init
+terraform apply --auto-approve
+~~~
 ## **Полезное:**
 
 - Start
