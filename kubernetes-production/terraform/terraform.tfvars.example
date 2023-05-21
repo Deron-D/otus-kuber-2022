@@ -1,0 +1,11 @@
+cloud_id                 = "exampleexampleexample"
+folder_id                = "exampleexampleexample"
+zone                     = "ru-central1-a"
+image_id                 = "exampleexampleexample"
+public_key_path          = "~/.ssh/appuser.pub"
+subnet_id                = "exampleexampleexample"
+service_account_key_file = "key.json"
+private_key_path         = "~/.ssh/appuser"
+instance_count           = 5
+token                    = "TOKEN"
+ssh_username             = "ubuntu"
