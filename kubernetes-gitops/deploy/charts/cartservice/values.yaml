@@ -1,0 +1,8 @@
+image:
+  repository: avtandilko/cartservice
+  tag: latest
+
+redis:
+  cluster:
+    enabled: false
+  usePassword: false

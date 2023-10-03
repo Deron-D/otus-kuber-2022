@@ -1,0 +1,6 @@
+image:
+  repository: avtandilko/frontend
+  tag: latest
+ingress:
+  host: develop.kubernetes-platform-demo.express42.io
+environment: develop

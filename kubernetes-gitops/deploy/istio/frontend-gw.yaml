@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: frontend-gateway
+  namespace: microservices-demo
+spec:
+  selector:
+#    istio: ingressgateway
+    istio: ingress
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "onlineboutique.51.250.68.154.nip.io"

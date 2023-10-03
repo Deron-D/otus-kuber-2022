@@ -1,0 +1,35 @@
+{{ if eq .Values.environment "production" }}
+apiVersion: flagger.app/v1alpha3
+kind: Canary
+metadata:
+  name: frontend
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  progressDeadlineSeconds: 60
+  service:
+    port: 80
+    targetPort: 8080
+    gateways:
+    - frontend-gateway
+    hosts:
+    - {{ .Values.ingress.host }}
+    trafficPolicy:
+      tls:
+        mode: DISABLE
+    retries:
+      attempts: 3
+      perTryTimeout: 1s
+      retryOn: "gateway-error,connect-failure,refused-stream"
+  analysis:
+    interval: 1m
+    threshold: 1
+    maxWeight: 30
+    stepWeight: 10
+    metrics:
+    - name: request-success-rate
+      threshold: 99
+      interval: 1m
+{{ end }}

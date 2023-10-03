@@ -1,0 +1,21 @@
+[submodule "kubernetes-monitoring/kube-prometheus"]
+	path = kubernetes-monitoring/kube-prometheus
+	url = https://github.com/prometheus-operator/kube-prometheus.git
+[submodule "kubernetes-vault/vault-helm"]
+	path = kubernetes-vault/vault-helm
+	url = https://github.com/hashicorp/vault-helm.git
+[submodule "kubernetes-vault/consul-helm"]
+	path = kubernetes-vault/consul-helm
+	url = https://github.com/hashicorp/consul-helm.git
+[submodule "kubernetes-vault/vault-guides"]
+	path = kubernetes-vault/vault-guides
+	url = https://github.com/hashicorp/vault-guides.git
+[submodule "kubernetes-storage/kubrernetes-csi/csi-driver-host-path"]
+	path = kubernetes-storage/kubrernetes-csi/csi-driver-host-path
+	url = https://github.com/kubernetes-csi/csi-driver-host-path.git
+[submodule "kubernetes-debug/netperf-operator"]
+	path = kubernetes-debug/netperf-operator
+	url = git@github.com:piontec/netperf-operator.git
+[submodule "kubernetes-production/kubespray"]
+	path = kubernetes-production/kubespray
+	url = https://github.com/kubernetes-sigs/kubespray.git
